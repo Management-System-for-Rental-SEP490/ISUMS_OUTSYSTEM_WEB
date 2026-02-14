@@ -1,16 +1,29 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMagicLinkParam } from "../hooks/useMagicLinkParam";
-import { getEContractById } from "../serivces/contract.api";
-import { mockContract } from "../mock/contract.mock";
-import { ClipLoader } from "react-spinners";
-
-import { toast } from "react-toastify";
-import OtpModal from "../../../components/OtpModal";
 import {
+  getEContractById,
+  signEContract,
   confirmEContractByTenant,
   inputOtpEContractByTenant,
 } from "../serivces/contract.api";
+import { ClipLoader } from "react-spinners";
+
+import { toast } from "react-toastify";
+import ConfirmModal from "../../../components/ConfirmModal";
+import OtpModal from "../../../components/OtpModal";
+import SignModal from "../../../components/SignModal";
+
+/** Dữ liệu từ response API processCode (nhập OTP xác nhận) - dùng cho sign API */
+const getSignContextFromResponse = (res) => {
+  const data = res?.data?.data ?? res?.data ?? res;
+  return {
+    accessToken: data?.accessToken,
+    processId: data?.processId ?? data?.process_id,
+    signingPage: data?.pageSign,
+    signingPosition: data?.position ?? data?.signing_position ?? "0,0",
+  };
+};
 
 export function ContractViewPage() {
   const { id, token } = useMagicLinkParam();
@@ -19,10 +32,15 @@ export function ContractViewPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // OTP modal state
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [otpOpen, setOtpOpen] = useState(false);
   const [otpLoading, setOtpLoading] = useState(false);
+  const [signOpen, setSignOpen] = useState(false);
+  const [signLoading, setSignLoading] = useState(false);
   const [contractInfo, setContractInfo] = useState(null);
+
+  const signPayloadRef = useRef(null);
+  const signContextRef = useRef(null);
   useEffect(() => {
     if (!id) {
       setError("Thiếu ID hợp đồng trong đường dẫn.");
@@ -63,59 +81,109 @@ export function ContractViewPage() {
     };
   }, [id, token]);
 
-  // 1) Toast xác nhận đã đọc + nút đồng ý
+  /**
+   * Build payload theo tài liệu VNPT eContract.
+   * processId, signingPage, signingPosition lấy từ response API processCode (nhập OTP xác nhận).
+   */
+  const buildSignPayload = (signaturePayload, otp) => {
+    const ctx = signContextRef.current;
+    if (!ctx?.processId) {
+      throw new Error("Thiếu processId từ bước xác nhận OTP.");
+    }
+    return {
+      token: ctx.accessToken,
+      processId: ctx.processId,
+      reason: signaturePayload?.reason ?? "",
+      reject: false,
+      otp: otp ?? null,
+      signatureDisplayMode: Number(signaturePayload?.signatureDisplayMode) || 1,
+      signatureImage: signaturePayload?.signatureImage ?? null,
+      signingPage: ctx.signingPage ?? 0,
+      signatureText: `{{Name}}
+{{SubjectDN}}
+{{Reason}}
+{{SignTime}}`,
+      signingPosition: ctx.signingPosition ?? "0,0",
+      fontSize: signaturePayload?.fontSize ?? 12,
+      showReason: true,
+      confirmTermsConditions: signaturePayload?.confirmTermsConditions ?? true,
+    };
+  };
+
+  const handleSignSubmit = async (
+    signaturePayload,
+    otpPayload,
+    onStep1Success,
+  ) => {
+    if (!token) {
+      toast.error("Thiếu token từ đường dẫn.");
+      return;
+    }
+    if (!signContextRef.current?.processId) {
+      toast.error("Vui lòng hoàn tất bước xác nhận OTP trước khi ký.");
+      return;
+    }
+
+    setSignLoading(true);
+    try {
+      if (signaturePayload) {
+        const payload = buildSignPayload(signaturePayload, null);
+        await signEContract(payload);
+        signPayloadRef.current = signaturePayload;
+        onStep1Success?.();
+        toast.info("Mã OTP đã được gửi. Vui lòng nhập để hoàn tất ký.");
+      } else if (otpPayload?.otp) {
+        const payload = buildSignPayload(
+          signPayloadRef.current,
+          otpPayload.otp,
+        );
+        await signEContract(payload);
+        toast.success("Ký hợp đồng thành công!");
+        setSignOpen(false);
+        signPayloadRef.current = null;
+      }
+    } catch (err) {
+      const msg =
+        err?.response?.data?.message || err?.message || "Lỗi ký hợp đồng.";
+      toast.error(msg);
+    } finally {
+      setSignLoading(false);
+    }
+  };
+
   const handleConfirm = () => {
     if (!id || !token) {
       toast.error("Thiếu id hoặc token từ đường dẫn.");
       return;
     }
-
-    toast(
-      ({ closeToast }) => (
-        <ConfirmReadToast
-          onCancel={closeToast}
-          onAgree={async () => {
-            // gọi API ready
-            const loadingId = toast.loading("Đang gửi yêu cầu xác nhận...");
-            try {
-              await confirmEContractByTenant(id, token);
-              toast.update(loadingId, {
-                render: "Đã gửi OTP. Vui lòng nhập mã OTP để hoàn tất.",
-                type: "success",
-                isLoading: false,
-                autoClose: 2000,
-              });
-              closeToast?.();
-              setOtpOpen(true); // mở modal OTP
-            } catch (err) {
-              const msg =
-                err?.response?.data?.message ||
-                err?.message ||
-                "Không thể xác nhận hợp đồng.";
-              toast.update(loadingId, {
-                render: msg,
-                type: "error",
-                isLoading: false,
-                autoClose: 3000,
-              });
-            }
-          }}
-        />
-      ),
-      {
-        autoClose: false,
-        closeOnClick: false,
-        draggable: false,
-      },
-    );
+    setConfirmOpen(true);
   };
-  const handleSubmitOtp = async (otp) => {
+
+  const handleConfirmAgree = async () => {
+    try {
+      await confirmEContractByTenant(id, token);
+      toast.success("Đã gửi OTP. Vui lòng nhập mã để tiếp tục ký.");
+      setConfirmOpen(false);
+      setOtpOpen(true);
+    } catch (err) {
+      const msg =
+        err?.response?.data?.message ||
+        err?.message ||
+        "Không thể gửi yêu cầu xác nhận.";
+      toast.error(msg);
+    }
+  };
+
+  const handleOtpSubmit = async (otp) => {
     if (!token) return;
     setOtpLoading(true);
     try {
-      await inputOtpEContractByTenant(otp, token);
-      toast.success("Xác nhận hợp đồng thành công!");
+      const res = await inputOtpEContractByTenant(otp, token);
+      signContextRef.current = getSignContextFromResponse(res);
+      console.log(signContextRef.current);
+      toast.success("Xác nhận thành công! Tiếp tục bước ký hợp đồng.");
       setOtpOpen(false);
+      setSignOpen(true);
     } catch (err) {
       const msg =
         err?.response?.data?.message ||
@@ -138,12 +206,27 @@ export function ContractViewPage() {
 
   return (
     <div className="min-h-screen bg-gray-200 flex flex-col">
-      {/* OTP Modal */}
+      <ConfirmModal
+        open={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={handleConfirmAgree}
+      />
       <OtpModal
         open={otpOpen}
         loading={otpLoading}
         onClose={() => (otpLoading ? null : setOtpOpen(false))}
-        onSubmit={handleSubmitOtp}
+        onSubmit={handleOtpSubmit}
+      />
+      <SignModal
+        open={signOpen}
+        loading={signLoading}
+        onClose={() => {
+          if (signLoading) return;
+          setSignOpen(false);
+          signContextRef.current = null;
+        }}
+        onSubmit={handleSignSubmit}
+        contractName={contractInfo?.name}
       />
 
       <div className="flex flex-col">
@@ -163,7 +246,7 @@ export function ContractViewPage() {
             onClick={handleConfirm}
             className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-md font-medium transition-colors shadow-md"
           >
-            Xác nhận hợp đồng
+            Ký hợp đồng
           </button>
         </header>
       </div>
@@ -180,57 +263,6 @@ export function ContractViewPage() {
           </div>
         </div>
       </main>
-    </div>
-  );
-}
-
-// Toast content component
-function ConfirmReadToast({ onCancel, onAgree }) {
-  const [checked, setChecked] = useState(false);
-  const [agreeLoading, setAgreeLoading] = useState(false);
-
-  return (
-    <div className="min-w-[320px]">
-      <div className="font-semibold text-gray-900">Xác nhận trước khi ký</div>
-      <div className="text-sm text-gray-700 mt-1">
-        Bạn vui lòng xác nhận rằng bạn đã xem đầy đủ nội dung hợp đồng.
-      </div>
-
-      <label className="flex items-center gap-2 mt-3 text-sm text-gray-800 cursor-pointer">
-        <input
-          type="checkbox"
-          checked={checked}
-          onChange={(e) => setChecked(e.target.checked)}
-        />
-        <span>Tôi đã xem đầy đủ hợp đồng</span>
-      </label>
-
-      <div className="mt-4 flex gap-2 justify-end">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-3 py-1.5 border border-gray-300 rounded text-sm hover:bg-gray-50"
-          disabled={agreeLoading}
-        >
-          Hủy
-        </button>
-
-        <button
-          type="button"
-          disabled={!checked || agreeLoading}
-          onClick={async () => {
-            setAgreeLoading(true);
-            try {
-              await onAgree();
-            } finally {
-              setAgreeLoading(false);
-            }
-          }}
-          className="px-3 py-1.5 rounded text-sm text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-60"
-        >
-          {agreeLoading ? "Đang xử lý..." : "Đồng ý"}
-        </button>
-      </div>
     </div>
   );
 }
