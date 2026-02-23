@@ -20,6 +20,7 @@ export default function SignModal({
   const [reason, setReason] = useState("");
   const [confirmTerms, setConfirmTerms] = useState(false);
   const [otp, setOtp] = useState("");
+  const [remainingSeconds, setRemainingSeconds] = useState(null); // đếm ngược OTP ký
   const canvasRef = useRef(null);
   const isDrawing = useRef(false);
 
@@ -31,6 +32,7 @@ export default function SignModal({
       setReason("");
       setConfirmTerms(false);
       setOtp("");
+      setRemainingSeconds(null);
     }
   }, [open]);
 
@@ -111,7 +113,7 @@ export default function SignModal({
 
   const needImage = signatureDisplayMode === 2 || signatureDisplayMode === 3;
   const isValidStep1 = confirmTerms && (needImage ? !!signatureImage : true);
-  const isValidStep2 = /^\d{6}$/.test(otp);
+  const isValidStep2 = /^\d{6}$/.test(otp) && (remainingSeconds ?? 1) > 0;
 
   const handleStep1Submit = () => {
     if (!isValidStep1) return;
@@ -123,6 +125,8 @@ export default function SignModal({
     };
     onSubmit(payload, null, (processId) => {
       setStep(2);
+      // Bắt đầu đếm ngược 5 phút cho OTP ký
+      setRemainingSeconds(5 * 60);
     });
   };
 
@@ -131,6 +135,24 @@ export default function SignModal({
     const payload = { otp };
     onSubmit(null, payload, () => {});
   };
+
+  // đếm ngược OTP (chỉ ở bước 2)
+  useEffect(() => {
+    if (!open || step !== 2 || remainingSeconds == null) return;
+    if (remainingSeconds <= 0) return;
+
+    const id = setInterval(() => {
+      setRemainingSeconds((prev) => {
+        if (prev == null || prev <= 1) {
+          clearInterval(id);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(id);
+  }, [open, step, remainingSeconds]);
 
   if (!open) return null;
 
@@ -277,6 +299,21 @@ export default function SignModal({
                 Mã OTP đã được gửi đến số điện thoại/email của bạn. Vui lòng
                 nhập mã 6 chữ số để hoàn tất ký hợp đồng.
               </p>
+
+              {typeof remainingSeconds === "number" && (
+                <div className="mb-3 text-sm text-gray-700 flex items-baseline gap-2">
+                  <span className="font-semibold">
+                    {String(Math.floor(remainingSeconds / 60)).padStart(2, "0")}{" "}
+                    Phút{" "}
+                    {String(remainingSeconds % 60).padStart(2, "0")} Giây
+                  </span>
+                  {remainingSeconds <= 0 && (
+                    <span className="text-red-500">
+                      OTP đã hết hạn, vui lòng gửi lại yêu cầu ký.
+                    </span>
+                  )}
+                </div>
+              )}
 
               <input
                 value={otp}
