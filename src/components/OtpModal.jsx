@@ -1,11 +1,7 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 
 export default function OtpModal({ open, onClose, onSubmit, loading }) {
   const [otp, setOtp] = useState("");
-
-  useEffect(() => {
-    if (open) setOtp("");
-  }, [open]);
 
   const isValid = useMemo(() => /^\d{6}$/.test(otp), [otp]);
 
