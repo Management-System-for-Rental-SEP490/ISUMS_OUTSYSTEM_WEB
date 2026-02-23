@@ -7,7 +7,10 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/econtract/view/:id" element={<ContractViewPage />} />
+        <Route
+          path="/econtract/view/:processCode"
+          element={<ContractViewPage />}
+        />
         <Route
           path="*"
           element={
