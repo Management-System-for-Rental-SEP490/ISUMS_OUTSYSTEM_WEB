@@ -16,7 +16,7 @@ export default function ConfirmModal({
   const handleConfirm = async () => {
     setLoading(true);
     try {
-      await onConfirm(file);
+      await onConfirm();
     } finally {
       setLoading(false);
     }
