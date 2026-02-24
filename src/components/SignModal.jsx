@@ -21,14 +21,26 @@ export default function SignModal({
   const [confirmTerms, setConfirmTerms] = useState(false);
   const [otp, setOtp] = useState("");
   const [remainingSeconds, setRemainingSeconds] = useState(null); // đếm ngược OTP ký
+  const [signatureInputMode, setSignatureInputMode] = useState("draw"); // draw | upload
   const canvasRef = useRef(null);
   const isDrawing = useRef(false);
+
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setSignatureImage(reader.result);
+    };
+    reader.readAsDataURL(file);
+  };
 
   useEffect(() => {
     if (open) {
       setStep(1);
       setSignatureDisplayMode(1);
       setSignatureImage(null);
+      setSignatureInputMode("draw");
       setReason("");
       setConfirmTerms(false);
       setOtp("");
@@ -46,7 +58,11 @@ export default function SignModal({
   }, []);
 
   useEffect(() => {
-    if (!open || (signatureDisplayMode !== 2 && signatureDisplayMode !== 3))
+    if (
+      !open ||
+      (signatureDisplayMode !== 2 && signatureDisplayMode !== 3) ||
+      signatureInputMode !== "draw"
+    )
       return;
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -74,6 +90,7 @@ export default function SignModal({
       e.preventDefault();
       isDrawing.current = true;
       const pos = getPos(e);
+      console.log(pos);
       ctx.beginPath();
       ctx.moveTo(pos.x, pos.y);
     };
@@ -109,7 +126,7 @@ export default function SignModal({
       canvas.removeEventListener("touchmove", draw);
       canvas.removeEventListener("touchend", end);
     };
-  }, [open, signatureDisplayMode]);
+  }, [open, signatureDisplayMode, signatureInputMode]);
 
   const needImage = signatureDisplayMode === 2 || signatureDisplayMode === 3;
   const isValidStep1 = confirmTerms && (needImage ? !!signatureImage : true);
@@ -125,7 +142,6 @@ export default function SignModal({
     };
     onSubmit(payload, null, (processId) => {
       setStep(2);
-      // Bắt đầu đếm ngược 5 phút cho OTP ký
       setRemainingSeconds(5 * 60);
     });
   };
@@ -223,33 +239,83 @@ export default function SignModal({
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       {signatureDisplayMode === 2
-                        ? "Vẽ chữ ký (hình ảnh)"
-                        : "Vẽ chữ ký"}
+                        ? "Chữ ký (văn bản và hình ảnh)"
+                        : "Chữ ký (chỉ hình ảnh)"}
                     </label>
-                    <div className="border rounded-lg overflow-hidden bg-white">
-                      <canvas
-                        ref={canvasRef}
-                        width={400}
-                        height={150}
-                        className="w-full touch-none"
-                        style={{
-                          width: "100%",
-                          height: "150px",
-                          cursor: "crosshair",
-                        }}
-                      />
-                      <button
-                        type="button"
-                        onClick={clearCanvas}
-                        className="text-sm text-gray-500 hover:text-red-600 py-1 px-2"
-                      >
-                        Xóa và vẽ lại
-                      </button>
-                    </div>
+
+                    {signatureInputMode === "draw" ? (
+                      <div className="space-y-2">
+                        <div className="border rounded-lg overflow-hidden bg-white">
+                          <canvas
+                            ref={canvasRef}
+                            width={400}
+                            height={150}
+                            className="w-full touch-none"
+                            style={{
+                              width: "100%",
+                              height: "150px",
+                              cursor: "crosshair",
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={clearCanvas}
+                            className="text-sm text-gray-500 hover:text-red-600 py-1 px-2"
+                          >
+                            Xóa và vẽ lại
+                          </button>
+                        </div>
+                        <button
+                          type="button"
+                          className="text-xs text-blue-600 hover:underline"
+                          onClick={() => {
+                            setSignatureImage(null);
+                            setSignatureInputMode("upload");
+                          }}
+                        >
+                          Đã có hình ảnh chữ ký? Tải lên ngay
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <p className="text-xs text-gray-600">
+                          Tải lên hình ảnh chữ ký của bạn.
+                        </p>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleFileChange}
+                          className="block w-full text-xs text-gray-700 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border file:border-gray-300 file:text-xs file:bg-white file:text-gray-700 hover:file:bg-gray-50"
+                        />
+                        {signatureImage && (
+                          <div className="mt-2">
+                            <p className="text-xs text-gray-500 mb-1">
+                              Xem trước hình ảnh chữ ký:
+                            </p>
+                            <img
+                              src={signatureImage}
+                              alt="Chữ ký đã chọn"
+                              className="max-h-32 border rounded-md"
+                            />
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          className="text-xs text-blue-600 hover:underline"
+                          onClick={() => {
+                            setSignatureImage(null);
+                            setSignatureInputMode("draw");
+                            clearCanvas();
+                          }}
+                        >
+                          Vẽ chữ ký
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ) : null}
 
-                <div>
+                {/* <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Lý do ký (tùy chọn)
                   </label>
@@ -260,7 +326,7 @@ export default function SignModal({
                     placeholder="Ví dụ: Đồng ý với nội dung hợp đồng"
                     className="w-full border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
                   />
-                </div>
+                </div> */}
 
                 <label className="flex items-start gap-2 cursor-pointer">
                   <input
@@ -304,8 +370,7 @@ export default function SignModal({
                 <div className="mb-3 text-sm text-gray-700 flex items-baseline gap-2">
                   <span className="font-semibold">
                     {String(Math.floor(remainingSeconds / 60)).padStart(2, "0")}{" "}
-                    Phút{" "}
-                    {String(remainingSeconds % 60).padStart(2, "0")} Giây
+                    Phút {String(remainingSeconds % 60).padStart(2, "0")} Giây
                   </span>
                   {remainingSeconds <= 0 && (
                     <span className="text-red-500">

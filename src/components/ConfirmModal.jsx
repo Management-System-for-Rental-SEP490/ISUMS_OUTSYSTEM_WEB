@@ -4,9 +4,9 @@ export default function ConfirmModal({
   open,
   onClose,
   onConfirm,
-  title = "Xác nhận ký điện tử chứng từ",
-  confirmLabel = "XÁC NHẬN",
-  cancelLabel = "ĐÓNG",
+  title = "Xác nhận ký chứng từ",
+  confirmLabel = "Xác nhận",
+  cancelLabel = "Đóng",
 }) {
   const [checked, setChecked] = useState(false);
   const [loading, setLoading] = useState(false);

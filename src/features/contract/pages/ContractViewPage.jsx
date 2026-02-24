@@ -21,6 +21,12 @@ const getSignContextFromResponse = (res) => {
   };
 };
 
+// Lấy downloadUrl từ response sign (VNPT trả kiểu res.data.data.downloadUrl)
+const getDownloadUrlFromSignResponse = (res) => {
+  const data = res?.data?.data ?? res?.data ?? res;
+  return data?.downloadUrl || data?.downloadURL || data?.download_url || null;
+};
+
 export function ContractViewPage() {
   const { processCode } = useMagicLinkParam();
   const navigate = useNavigate();
@@ -29,13 +35,13 @@ export function ContractViewPage() {
   const [isReadyToSign, setIsReadyToSign] = useState(false);
   const [signOpen, setSignOpen] = useState(false);
   const [signLoading, setSignLoading] = useState(false);
+
+  // ✅ NEW: trạng thái đã ký + link tải
+  const [downloadUrl, setDownloadUrl] = useState(null);
+
   const signPayloadRef = useRef(null);
   const signContextRef = useRef(null);
 
-  /**
-   * Build payload theo tài liệu VNPT eContract.
-   * processId, signingPage, signingPosition lấy từ response API processCode (nhập OTP xác nhận).
-   */
   const buildSignPayload = (signaturePayload, otp) => {
     const ctx = signContextRef.current;
     if (!ctx?.processId) {
@@ -77,21 +83,32 @@ export function ContractViewPage() {
 
     setSignLoading(true);
     try {
+      // STEP 1: gửi yêu cầu ký -> VNPT gửi OTP
       if (signaturePayload) {
         const payload = buildSignPayload(signaturePayload, null);
         await signEContract(payload);
         signPayloadRef.current = signaturePayload;
         onStep1Success?.();
         toast.info("Mã OTP đã được gửi. Vui lòng nhập để hoàn tất ký.");
-      } else if (otpPayload?.otp) {
+      }
+      // STEP 2: nhập OTP -> ký thành công, lấy downloadUrl
+      else if (otpPayload?.otp) {
         const payload = buildSignPayload(
           signPayloadRef.current,
           otpPayload.otp,
         );
-        await signEContract(payload);
+
+        const res = await signEContract(payload);
+
+        const url = getDownloadUrlFromSignResponse(res);
+        if (url) setDownloadUrl(url);
+
         toast.success("Ký hợp đồng thành công!");
         setSignOpen(false);
         signPayloadRef.current = null;
+
+        // ✅ optional: đóng “ready to sign” để tránh quay lại luồng ký
+        setIsReadyToSign(false);
       }
     } catch (err) {
       const msg =
@@ -103,12 +120,17 @@ export function ContractViewPage() {
   };
 
   const handleConfirm = () => {
+    // ✅ Nếu đã ký xong thì nút này sẽ thành “Tải xuống”
+    if (downloadUrl) {
+      window.location.assign(downloadUrl); // direct qua downloadUrl
+      return;
+    }
+
     if (processCode === undefined) {
       toast.error("Thiếu id hoặc token từ đường dẫn.");
       return;
     }
-    // Nếu đã có context ký thì mở luôn luồng ký,
-    // còn chưa thì mở modal xác nhận trước khi ký.
+
     if (isReadyToSign && signContextRef.current?.processId) {
       setSignOpen(true);
     } else {
@@ -120,11 +142,9 @@ export function ContractViewPage() {
     try {
       const res = await readyEcontract(processCode);
       signContextRef.current = getSignContextFromResponse(res);
-      console.log(signContextRef.current);
       toast.success("Xác nhận thành công, chuẩn bị ký hợp đồng.");
       setIsReadyToSign(true);
       setConfirmOpen(false);
-      // Sau khi xác nhận xong thì mở luôn modal ký (bước 1 của SignModal)
       setSignOpen(true);
     } catch (err) {
       const msg =
@@ -179,9 +199,21 @@ export function ContractViewPage() {
 
           <button
             onClick={handleConfirm}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-md font-medium transition-colors shadow-md"
+            disabled={signLoading || (!downloadUrl && !processCode)}
+            className={`px-5 py-2 rounded-md font-medium transition-colors shadow-md text-white
+              ${
+                downloadUrl
+                  ? "bg-emerald-600 hover:bg-emerald-700"
+                  : "bg-blue-600 hover:bg-blue-700"
+              }
+              ${signLoading ? "opacity-60 cursor-not-allowed" : ""}
+            `}
           >
-            {isReadyToSign ? "Ký hợp đồng" : "Xác nhận"}
+            {downloadUrl
+              ? "Tải xuống"
+              : isReadyToSign
+                ? "Ký hợp đồng"
+                : "Xác nhận"}
           </button>
         </header>
       </div>
