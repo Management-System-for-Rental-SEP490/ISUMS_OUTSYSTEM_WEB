@@ -1,0 +1,75 @@
+name: S3 + CloudFront
+
+on:
+  push:
+    branches: [ dev ]
+
+env:
+  NODE_VERSION: 22.19.0
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment: isums
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create .env from monolithic secret
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${{ secrets.FRONTEND_ENV_FILE }}" ]; then
+            echo "Secret FRONTEND_ENV_FILE is empty"; exit 1
+          fi
+          printf "%s" "${{ secrets.FRONTEND_ENV_FILE }}" | tr -d '\r' > .env
+          cp .env .env.production || true
+          chmod 600 .env .env.production || true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          
+      - name: Install deps
+        run: |
+          npm install
+
+      - name: Build
+        run: |
+          set -e
+          npm run build
+          found=""
+          for d in dist build out; do
+            if [ -d "$d" ]; then found="$d"; break; fi
+          done
+          if [ -z "$found" ]; then echo "No dist/build/out found"; exit 1; fi
+          echo "DIST_DIR=$found" >> $GITHUB_ENV
+
+      - name: Configure AWS (OIDC AssumeRole)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ secrets.ROLE_GITHUB_ACTION }}
+          aws-region: ${{ secrets.AWS_REGION }}
+          role-session-name: gha-frontend-deploy
+
+      - name: Sync to S3 (immutable assets)
+        run: |
+          aws s3 sync "$DIST_DIR" "s3://${{ secrets.S3_BUCKET }}/" \
+            --delete \
+            --cache-control max-age=31536000,public \
+            --exclude index.html
+
+      - name: Upload index.html (no-cache)
+        run: |
+          aws s3 cp "$DIST_DIR/index.html" "s3://${{ secrets.S3_BUCKET }}/index.html" \
+            --cache-control max-age=0,no-cache,no-store,must-revalidate
+
+      - name: Invalidate CloudFront
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ secrets.CF_DIST_ID }}" \
+            --paths "/*"
