@@ -26,6 +26,7 @@ export function ContractViewPage() {
   const navigate = useNavigate();
   const { html, contractInfo, loading, error } = useEContract(processCode);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [isReadyToSign, setIsReadyToSign] = useState(false);
   const [signOpen, setSignOpen] = useState(false);
   const [signLoading, setSignLoading] = useState(false);
   const signPayloadRef = useRef(null);
@@ -106,7 +107,13 @@ export function ContractViewPage() {
       toast.error("Thiếu id hoặc token từ đường dẫn.");
       return;
     }
-    setConfirmOpen(true);
+    // Nếu đã có context ký thì mở luôn luồng ký,
+    // còn chưa thì mở modal xác nhận trước khi ký.
+    if (isReadyToSign && signContextRef.current?.processId) {
+      setSignOpen(true);
+    } else {
+      setConfirmOpen(true);
+    }
   };
 
   const handleConfirmAgree = async () => {
@@ -114,9 +121,11 @@ export function ContractViewPage() {
       const res = await readyEcontract(processCode);
       signContextRef.current = getSignContextFromResponse(res);
       console.log(signContextRef.current);
-      toast.success("Xác nhận thành công , chuẩn bị ký");
+      toast.success("Xác nhận thành công, chuẩn bị ký hợp đồng.");
+      setIsReadyToSign(true);
       setConfirmOpen(false);
-      setOtpOpen(true);
+      // Sau khi xác nhận xong thì mở luôn modal ký (bước 1 của SignModal)
+      setSignOpen(true);
     } catch (err) {
       const msg =
         err?.response?.data?.message ||
@@ -172,7 +181,7 @@ export function ContractViewPage() {
             onClick={handleConfirm}
             className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-md font-medium transition-colors shadow-md"
           >
-            Ký hợp đồng
+            {isReadyToSign ? "Ký hợp đồng" : "Xác nhận"}
           </button>
         </header>
       </div>

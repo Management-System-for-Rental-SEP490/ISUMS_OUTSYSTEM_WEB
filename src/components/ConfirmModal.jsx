@@ -4,11 +4,9 @@ export default function ConfirmModal({
   open,
   onClose,
   onConfirm,
-  title = "Xác nhận trước khi ký",
-  message = "Bạn vui lòng xác nhận rằng bạn đã xem đầy đủ nội dung hợp đồng.",
-  confirmLabel = "Đồng ý",
-  cancelLabel = "Hủy",
-  checkboxLabel = "Tôi đã xem đầy đủ hợp đồng",
+  title = "Xác nhận ký điện tử chứng từ",
+  confirmLabel = "XÁC NHẬN",
+  cancelLabel = "ĐÓNG",
 }) {
   const [checked, setChecked] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -18,7 +16,7 @@ export default function ConfirmModal({
   const handleConfirm = async () => {
     setLoading(true);
     try {
-      await onConfirm();
+      await onConfirm(file);
     } finally {
       setLoading(false);
     }
@@ -26,49 +24,113 @@ export default function ConfirmModal({
 
   return (
     <div className="fixed inset-0 z-[9999] bg-black/40 flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-white rounded-xl shadow-xl border overflow-hidden">
-        <div className="px-5 py-4 border-b flex items-center justify-between">
-          <h3 className="font-semibold text-gray-800">{title}</h3>
+      {/* Tăng max-w-md lên max-w-lg để Form rộng hơn */}
+      <div className="w-full max-w-lg bg-white rounded-lg shadow-xl border overflow-hidden">
+        {/* Header */}
+        <div className="px-6 py-4 flex items-center justify-between border-b">
+          <h3 className="text-lg font-semibold text-gray-800">{title}</h3>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-black disabled:opacity-50 text-xl leading-none"
+            className="text-gray-400 hover:text-gray-700 disabled:opacity-50 transition-colors"
             disabled={loading}
           >
-            ✕
+            <svg
+              className="w-6 h-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
           </button>
         </div>
 
-        <div className="px-5 py-5">
-          <p className="text-sm text-gray-600">{message}</p>
+        <div className="px-6 py-6 space-y-6">
+          <div className="space-y-3">
+            <p className="text-sm text-gray-800 font-medium">
+              Vui lòng đồng ý với điều khoản trước khi thực hiện ký chứng từ.
+            </p>
 
-          <label className="flex items-center gap-2 mt-4 text-sm text-gray-800 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={checked}
-              onChange={(e) => setChecked(e.target.checked)}
-              className="rounded"
-            />
-            <span>{checkboxLabel}</span>
-          </label>
-
-          <div className="mt-6 flex gap-2 justify-end">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={loading}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-60"
-            >
-              {cancelLabel}
-            </button>
-            <button
-              type="button"
-              disabled={!checked || loading}
-              onClick={handleConfirm}
-              className="px-4 py-2 rounded-lg text-sm bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
-            >
-              {loading ? "Đang xử lý..." : confirmLabel}
-            </button>
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={checked}
+                onChange={(e) => setChecked(e.target.checked)}
+                className="mt-1 w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+              />
+              <span className="text-sm text-gray-700">
+                Tôi đồng ý với nội dung chứng từ và{" "}
+                <a href="#" className="text-blue-600 hover:underline">
+                  Điều khoản pháp lý
+                </a>
+              </span>
+            </label>
           </div>
+
+          {/* Warning Message */}
+          <div className="text-center pt-2">
+            <p className="text-sm font-semibold text-red-500">
+              Nhấn "Xác nhận" để xác nhận hành động của bạn
+            </p>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 flex gap-4 justify-end border-t bg-gray-50/50">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={loading}
+            className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-bold text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-60"
+          >
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={3}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+            {cancelLabel}
+          </button>
+
+          <button
+            type="button"
+            disabled={!checked || loading}
+            onClick={handleConfirm}
+            className="flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-bold bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed shadow-sm"
+          >
+            {loading ? (
+              "ĐANG XỬ LÝ..."
+            ) : (
+              <>
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={3}
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+                {confirmLabel}
+              </>
+            )}
+          </button>
         </div>
       </div>
     </div>
