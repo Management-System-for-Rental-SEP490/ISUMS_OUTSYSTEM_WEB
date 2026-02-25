@@ -1,5 +1,4 @@
 import { useState, useRef } from "react";
-import { useNavigate } from "react-router-dom";
 import { useMagicLinkParam } from "../hooks/useMagicLinkParam";
 import { useEContract } from "../hooks/useEContract";
 import { signEContract, readyEcontract } from "../services/contract.api";
@@ -7,10 +6,9 @@ import { ClipLoader } from "react-spinners";
 
 import { toast } from "react-toastify";
 import ConfirmModal from "../../../components/ConfirmModal";
-import OtpModal from "../../../components/OtpModal";
 import SignModal from "../../../components/SignModal";
 
-//  Lấy dữ liệu cho api Ký hợp đồng từ api xác nhận OTPF
+//  Lấy dữ liệu cho api Ký hợp đồng từ SignEContract lần 1 để lấy mã xác nhận OTP
 const getSignContextFromResponse = (res) => {
   const data = res?.data?.data ?? res?.data ?? res;
   return {
@@ -20,8 +18,6 @@ const getSignContextFromResponse = (res) => {
     signingPosition: data?.position ?? data?.signing_position ?? "0,0",
   };
 };
-
-// Lấy downloadUrl từ response sign (VNPT trả kiểu res.data.data.downloadUrl)
 const getDownloadUrlFromSignResponse = (res) => {
   const data = res?.data?.data ?? res?.data ?? res;
   return data?.downloadUrl || data?.downloadURL || data?.download_url || null;
@@ -29,7 +25,6 @@ const getDownloadUrlFromSignResponse = (res) => {
 
 export function ContractViewPage() {
   const { processCode } = useMagicLinkParam();
-  const navigate = useNavigate();
   const { html, contractInfo, loading, error } = useEContract(processCode);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [isReadyToSign, setIsReadyToSign] = useState(false);
@@ -48,6 +43,7 @@ export function ContractViewPage() {
       throw new Error("Thiếu processId từ bước xác nhận OTP.");
     }
     return {
+      processCode: processCode,
       token: ctx.accessToken,
       processId: ctx.processId,
       reason: signaturePayload?.reason ?? "",
@@ -57,8 +53,6 @@ export function ContractViewPage() {
       signatureImage: signaturePayload?.signatureImage ?? null,
       signingPage: ctx.signingPage ?? 0,
       signatureText: `{{Name}}
-{{SubjectDN}}
-{{Reason}}
 {{SignTime}}`,
       signingPosition: ctx.signingPosition ?? "0,0",
       fontSize: signaturePayload?.fontSize ?? 12,
@@ -120,9 +114,9 @@ export function ContractViewPage() {
   };
 
   const handleConfirm = () => {
-    // ✅ Nếu đã ký xong thì nút này sẽ thành “Tải xuống”
     if (downloadUrl) {
-      window.location.assign(downloadUrl); // direct qua downloadUrl
+      // downloadByBlob(downloadUrl, `${contractInfo?.name || "hop-dong"}.pdf`);
+      window.location.replace(downloadUrl);
       return;
     }
 
@@ -162,10 +156,16 @@ export function ContractViewPage() {
       </div>
     );
   if (error)
-    return <div className="p-10 text-center text-red-500">{error}</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-100">
+        <div className="px-6 py-4 rounded-lg bg-white shadow text-center text-red-500 text-sm md:text-base">
+          {error}
+        </div>
+      </div>
+    );
 
   return (
-    <div className="min-h-screen bg-gray-200 flex flex-col">
+    <div className="min-h-screen bg-slate-100 flex flex-col">
       <ConfirmModal
         open={confirmOpen}
         onClose={() => setConfirmOpen(false)}
@@ -184,49 +184,70 @@ export function ContractViewPage() {
         contractName={contractInfo?.name}
       />
 
-      <div className="flex flex-col">
-        <header className="sticky top-0 z-10 w-full bg-white border-b border-gray-300 px-6 py-3 flex justify-between items-center shadow-sm">
-          <button
-            onClick={() => navigate(-1)}
-            className="text-gray-600 hover:text-black flex items-center gap-2"
-          >
-            <span>{contractInfo?.name}</span>
-          </button>
+      <header className="sticky top-0 z-10 w-full bg-white/90 backdrop-blur border-b border-slate-200">
+        <div className="mx-auto max-w-6xl px-4 md:px-6 py-3 md:py-4 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="min-w-0">
+              <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500 font-semibold">
+                Hợp đồng điện tử
+              </div>
+              <div className="text-sm md:text-base font-medium text-slate-900 truncate">
+                {contractInfo?.name || "Xem trước hợp đồng"}
+              </div>
+            </div>
+          </div>
 
-          <h1 className="font-semibold text-gray-800 hidden md:block">
-            Xem trước hợp đồng
-          </h1>
+          <di v className="flex items-center gap-4">
+            <div className="hidden md:flex items-center text-xs md:text-sm text-slate-500">
+              <span className="relative mr-2 inline-flex h-2 w-2 rounded-full bg-emerald-500">
+                <span className="absolute inset-0 rounded-full bg-emerald-400/60 animate-ping" />
+              </span>
+              <span>Tình trạng: </span>
+              <span className="ml-1 font-medium text-slate-800">
+                {downloadUrl ? "Đã ký" : "Chờ ký"}
+              </span>
+            </div>
 
-          <button
-            onClick={handleConfirm}
-            disabled={signLoading || (!downloadUrl && !processCode)}
-            className={`px-5 py-2 rounded-md font-medium transition-colors shadow-md text-white
+            <button
+              onClick={handleConfirm}
+              disabled={signLoading || (!downloadUrl && !processCode)}
+              className={`inline-flex items-center justify-center rounded-full px-5 md:px-6 py-2.5 text-xs md:text-sm font-semibold shadow-sm transition-all
               ${
                 downloadUrl
-                  ? "bg-emerald-600 hover:bg-emerald-700"
-                  : "bg-blue-600 hover:bg-blue-700"
+                  ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                  : "bg-blue-600 hover:bg-blue-700 text-white"
               }
-              ${signLoading ? "opacity-60 cursor-not-allowed" : ""}
-            `}
-          >
-            {downloadUrl
-              ? "Tải xuống"
-              : isReadyToSign
-                ? "Ký hợp đồng"
-                : "Xác nhận"}
-          </button>
-        </header>
-      </div>
+              ${
+                signLoading || (!downloadUrl && !processCode)
+                  ? "opacity-60 cursor-not-allowed"
+                  : ""
+              }`}
+            >
+              {downloadUrl
+                ? "Tải xuống"
+                : isReadyToSign
+                  ? "Ký hợp đồng"
+                  : "Xác nhận & Ký"}
+            </button>
+          </di>
+        </div>
+      </header>
 
-      <main className="flex-grow flex justify-center p-4 md:p-8">
-        <div className="w-full max-w-4xl">
-          <div
-            className="bg-white p-8 md:p-12 shadow-2xl rounded-sm min-h-[1000px] contract-content"
-            dangerouslySetInnerHTML={{ __html: html }}
-          />
+      <main className="flex-grow flex justify-center px-3 md:px-6 py-4 md:py-8">
+        <div className="w-full max-w-5xl">
+          <div className="mb-4 md:mb-6 flex items-center gap-2 text-xs md:text-sm text-slate-500">
+            <span className="inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+            <span>Vui lòng kiểm tra kỹ nội dung trước khi thực hiện ký số</span>
+          </div>
 
-          <div className="text-center py-6 text-gray-500 text-sm">
-            --- Hết nội dung hợp đồng ---
+          <div className="rounded-2xl bg-slate-50 p-3 md:p-4 shadow-sm">
+            <div
+              className="bg-white px-5 md:px-10 py-8 md:py-12 shadow-sm rounded-xl min-h-[900px] contract-content"
+              dangerouslySetInnerHTML={{ __html: html }}
+            />
+            <div className="text-center py-4 md:py-6 text-slate-400 text-xs md:text-sm tracking-wide">
+              — Hết nội dung hợp đồng —
+            </div>
           </div>
         </div>
       </main>
