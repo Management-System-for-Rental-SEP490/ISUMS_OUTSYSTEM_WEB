@@ -216,7 +216,7 @@ function SignaturePreviewModal({
                 className="text-xs md:text-sm px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
                 disabled={loading}
               >
-                {loading ? "Đang xử lý..." : "Đồng ý & gửi OTP"}
+                {loading ? "Đang xử lý..." : "Đồng ý"}
               </button>
             </div>
           </div>
@@ -245,6 +245,8 @@ export default function SignModal({
   onSubmit,
   loading,
   contractName,
+  initialStep = 1,
+  onResendOtp,
 }) {
   const [step, setStep] = useState(1);
   const [signatureDisplayMode, setSignatureDisplayMode] = useState(1);
@@ -263,8 +265,8 @@ export default function SignModal({
   const [logoPos, setLogoPos] = useState({ x: 10, y: 55 });
   const [sigPos, setSigPos] = useState({ x: 260, y: 35 });
 
-  const [logoSize] = useState({ w: 140, h: 90 });
-  const [sigSize] = useState({ w: 330, h: 120 });
+  const [logoSize] = useState({ w: 400, h: 140 });
+  const [sigSize] = useState({ w: 400, h: 140 });
 
   const canvasRef = useRef(null);
   const isDrawing = useRef(false);
@@ -281,7 +283,7 @@ export default function SignModal({
   useEffect(() => {
     if (!open) return;
 
-    setStep(1);
+    setStep(initialStep);
     setSignatureDisplayMode(1);
     setDrawnSignature(null);
     setUploadedImage(null);
@@ -290,11 +292,11 @@ export default function SignModal({
     setReason("");
     setConfirmTerms(false);
     setOtp("");
-    setRemainingSeconds(null);
+    setRemainingSeconds(initialStep === 2 ? 5 * 60 : null);
 
     setLogoPos({ x: 10, y: 55 });
     setSigPos({ x: 260, y: 35 });
-  }, [open]);
+  }, [open, initialStep]);
 
   const clearCanvas = useCallback(() => {
     const canvas = canvasRef.current;
@@ -674,19 +676,6 @@ export default function SignModal({
                     )}
                   </div>
                 )}
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-800 mb-1">
-                    Lý do (tuỳ chọn)
-                  </label>
-                  <input
-                    value={reason}
-                    onChange={(e) => setReason(e.target.value)}
-                    placeholder="Nhập lý do nếu có"
-                    className="w-full border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
                 <label className="flex items-start gap-2 cursor-pointer mt-1">
                   <input
                     type="checkbox"
@@ -717,7 +706,7 @@ export default function SignModal({
                   disabled={!isValidStep1 || loading}
                   className="px-4 py-2 rounded-lg text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
                 >
-                  {loading ? "Đang xử lý..." : "Tiếp tục nhận OTP"}
+                  {loading ? "Đang xử lý..." : "Xem trước chữ ký"}
                 </button>
               </div>
 
@@ -749,15 +738,33 @@ export default function SignModal({
               </p>
 
               {typeof remainingSeconds === "number" && (
-                <div className="mb-3 text-sm text-gray-700 flex items-baseline gap-2">
-                  <span className="font-semibold">
-                    {String(Math.floor(remainingSeconds / 60)).padStart(2, "0")}{" "}
-                    Phút {String(remainingSeconds % 60).padStart(2, "0")} Giây
-                  </span>
-                  {remainingSeconds <= 0 && (
-                    <span className="text-red-500">
-                      OTP đã hết hạn, vui lòng gửi lại yêu cầu ký.
+                <div className="mb-3 text-sm text-gray-700 flex items-baseline gap-2 flex-wrap">
+                  {remainingSeconds > 0 ? (
+                    <span className="font-semibold">
+                      {String(Math.floor(remainingSeconds / 60)).padStart(
+                        2,
+                        "0",
+                      )}{" "}
+                      Phút {String(remainingSeconds % 60).padStart(2, "0")} Giây
                     </span>
+                  ) : (
+                    <>
+                      <span className="text-red-500 font-medium">
+                        OTP đã hết hạn.
+                      </span>
+                      {onResendOtp && (
+                        <button
+                          type="button"
+                          disabled={loading}
+                          onClick={() =>
+                            onResendOtp(() => setRemainingSeconds(5 * 60))
+                          }
+                          className="ml-1 px-3 py-1 text-xs font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
+                        >
+                          {loading ? "Đang gửi..." : "Gửi lại OTP"}
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
               )}

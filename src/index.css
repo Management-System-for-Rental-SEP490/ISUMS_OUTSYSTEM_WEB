@@ -2,3 +2,21 @@
 root{
     font-family: 'Times New Roman', Times, serif;
 }
+
+/* ── Contract HTML content rendered in A4 container ── */
+/* NO padding here — coordinate system treats (0,0) as top-left of PDF page.
+   Any margins must come from the HTML content itself (VNPT embeds its own styles). */
+.contract-content {
+  font-family: 'Times New Roman', Times, serif;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #000;
+}
+
+.contract-content p,
+.contract-content div,
+.contract-content span,
+.contract-content td,
+.contract-content th {
+  font-family: 'Times New Roman', Times, serif;
+}
