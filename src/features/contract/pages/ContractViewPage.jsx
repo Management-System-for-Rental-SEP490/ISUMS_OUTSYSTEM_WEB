@@ -16,14 +16,10 @@ export function ContractViewPage() {
   const { processCode } = useMagicLinkParam();
   const { html, contractInfo, loading, error } = useEContract(processCode);
   const { a4Scale, scrollAreaRef } = useA4Scale();
-
-  // placementMode sống ở page vì nó kết nối cả hai hooks bên dưới
   const [placementMode, setPlacementMode] = useState(false);
-
   const placement = useSignaturePlacement({
     a4Scale,
     scrollAreaRef,
-    html,
     placementMode,
   });
 

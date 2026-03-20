@@ -33,9 +33,10 @@ export function useContractSign({
     const [llx, lly, urx, ury] = currentPlacement.signingPosition
       .split(",")
       .map(Number);
-    const offsetX = -30;
-    const offsetY = -263;
+    const offsetX = -20;
+    const offsetY = 252;
     const adjustedPosition = `${llx + offsetX},${lly + offsetY},${urx + offsetX},${ury + offsetY}`;
+    console.log("[sign] raw:", currentPlacement.signingPosition, "→ sent:", adjustedPosition, "page:", currentPlacement.signingPage);
 
     return {
       processCode,

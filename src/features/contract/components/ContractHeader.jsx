@@ -39,9 +39,11 @@ export default function ContractHeader({
       <div className="mx-auto max-w-6xl px-4 md:px-6 py-3 flex items-center justify-between gap-4">
         {/* Left: icon + contract name */}
         <div className="flex items-center gap-3 min-w-0">
-          <div className="w-9 h-9 rounded-xl bg-linear-to-br from-blue-600 to-blue-700 flex items-center justify-center shrink-0 shadow-sm">
-            <span className="text-white text-[11px] font-bold tracking-wide">HĐ</span>
-          </div>
+          <img
+            src="/hcmc_logo_circle.png"
+            alt="Logo"
+            className="w-9 h-9 rounded-full object-contain shrink-0 shadow-sm"
+          />
           <div className="min-w-0">
             <div className="text-[10px] uppercase tracking-[0.18em] text-slate-400 font-semibold">
               Hợp đồng điện tử
