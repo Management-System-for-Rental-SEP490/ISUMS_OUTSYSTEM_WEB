@@ -296,6 +296,7 @@
     contractName,
     initialStep = 1,
     onResendOtp,
+    stepIndicator,
   }) {
     const [step, setStep] = useState(1);
     const [signatureDisplayMode, setSignatureDisplayMode] = useState(1);
@@ -584,6 +585,11 @@
     return (
       <div className="fixed inset-0 z-[9999] bg-black/45 flex items-center justify-center p-4">
         <div className="w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto">
+          {stepIndicator && (
+            <div className="px-8 pt-6 pb-5 border-b border-gray-100 sticky top-0 bg-white z-10">
+              {stepIndicator}
+            </div>
+          )}
           <div className="px-6 py-4 border-b flex items-center justify-between sticky top-0 bg-white/95 backdrop-blur">
             <h3 className="font-semibold text-gray-900 text-base md:text-lg">
               {step === 1 ? "Ký hợp đồng" : "Nhập mã OTP"}

@@ -1,9 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, useEffect } from "react";
 import {
   A4_SCALE,
   A4_WIDTH_PX,
-  A4_HEIGHT_PX,
-  ESTIMATED_PAGE_HEIGHT_PX,
   clamp,
   ptToPixel,
   pixelToPt,
@@ -11,12 +9,12 @@ import {
 
 export function useSignaturePlacement({ a4Scale, scrollAreaRef, placementMode }) {
   const contractContentRef = useRef(null);
-  const iframeRef = useRef(null);
 
   const [signatureBoxPosition, setSignatureBoxPosition] = useState({ x: 24, y: 24 });
   const [boxPxSize, setBoxPxSize] = useState({ w: 225, h: 113 });
   const [totalPages, setTotalPages] = useState(1);
-  const [iframeHeight, setIframeHeight] = useState(A4_HEIGHT_PX);
+
+  const effectivePageHeight = A4_WIDTH_PX * A4_SCALE;
 
   // Auto-scroll đến drag box khi bật placement mode
   useEffect(() => {
@@ -44,27 +42,9 @@ export function useSignaturePlacement({ a4Scale, scrollAreaRef, placementMode })
       signatureBoxPosition,
       totalPages,
       boxPxSize.h,
+      effectivePageHeight,
     );
   }, [signatureBoxPosition, boxPxSize.h, totalPages]);
-
-  // Ước tính tổng trang từ iframe
-  const handleIframeLoad = () => {
-    const iframe = iframeRef.current;
-    if (!iframe) return;
-
-    const innerH =
-      iframe.contentDocument?.documentElement?.scrollHeight ??
-      iframe.contentDocument?.body?.scrollHeight ??
-      A4_HEIGHT_PX;
-
-    setIframeHeight(innerH);
-
-    const ratioPageH = A4_WIDTH_PX * A4_SCALE;
-    if (ratioPageH <= 0) return;
-
-    const estimatedPages = Math.max(1, Math.ceil(innerH / ratioPageH));
-    setTotalPages((prev) => Math.max(prev, estimatedPages));
-  };
 
   // Khởi tạo vị trí drag box từ PDF points
   function initDragPosition(ptPosition, signingPage, nPages) {
@@ -73,7 +53,8 @@ export function useSignaturePlacement({ a4Scale, scrollAreaRef, placementMode })
 
     setTotalPages(nPages);
 
-    const px = ptToPixel(el, ptPosition, nPages, signingPage);
+    const pageH = effectivePageHeight;
+    const px = ptToPixel(el, ptPosition, nPages, signingPage, pageH);
     const cw = el.clientWidth;
     const totalH = nPages * ESTIMATED_PAGE_HEIGHT_PX;
 
@@ -86,14 +67,12 @@ export function useSignaturePlacement({ a4Scale, scrollAreaRef, placementMode })
 
   return {
     contractContentRef,
-    iframeRef,
     signatureBoxPosition,
     setSignatureBoxPosition,
     boxPxSize,
-    iframeHeight,
     totalPages,
+    setTotalPages,
     currentPlacement,
     initDragPosition,
-    handleIframeLoad,
   };
 }

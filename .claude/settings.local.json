@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -r \"CCCD\\\\|cccd\\\\|identity\\\\|chứng minh\\\\|số định danh\" /d/University/Semester_9th/SEP490/ISUMS_WEB/ISUMS_OUTSYTEM_WEB/src --include=*.js --include=*.jsx --include=*.ts --include=*.tsx)"
+    ]
+  }
+}
