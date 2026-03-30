@@ -1,26 +1,24 @@
-// ─── Hệ tọa độ VNPT (landscape): dùng cho chuyển đổi tọa độ ký ─────────────
-// VNPT sử dụng tọa độ landscape: width=752pt, height=595pt
-// (a,b) = góc dưới trái, (c,d) = góc trên phải
-export const VNPT_PAGE_W_PT = 752;
-export const VNPT_PAGE_H_PT = 595;
+// ─── Kích thước box chữ ký (đơn vị: PDF points) ──────────────────────────────
+export const BOX_W_PT = 200;
+export const BOX_H_PT = 120;
 
-// Kích thước ô chữ ký mặc định (pt) — khớp với default VNPT
-export const SIG_W_PT = 170;
-export const SIG_H_PT = 90;
+// ─── Kích thước box hiển thị trên màn hình (đơn vị: pixel) ───────────────────
+export const BOX_W_PX = 200;
+export const BOX_H_PX = 120;
 
-// Ước tính chiều cao 1 trang PDF khi render trong iframe wrapper (px)
-export const ESTIMATED_PAGE_HEIGHT_PX = 900;
+// Kích thước trang PDF gốc (Portrait A4, đơn vị: points)
+export const PDF_PAGE_W_PT = 595.275;
+export const PDF_PAGE_H_PT = 841.875;
 
-// ─── Hằng số hiển thị (A4 display) ─────────────────────────────────────────
-// Tỉ lệ chiều cao / chiều rộng A4 (dùng cho layout, không liên quan tọa độ ký)
-export const A4_SCALE = 841.875 / 595.275; // ≈ 1.4142
+// Tỉ lệ chiều cao / chiều rộng A4
+export const A4_SCALE = PDF_PAGE_H_PT / PDF_PAGE_W_PT; // ≈ 1.4142
 export const A4_WIDTH_PX = 794;
 export const A4_HEIGHT_PX = 1123;
 
-// ─── Vị trí ký mặc định (VNPT points, origin bottom-left) ──────────────────
+// ─── Vị trí ký mặc định (PDF points, origin bottom-left) ─────────────────────
 export const DEFAULT_SIGN_POSITIONS = {
-  PARTY_A: { signingPage: 3, signingPosition: "87,140,257,230" },
-  PARTY_B: { signingPage: 3, signingPosition: "343,140,513,230" },
+  PARTY_A: { signingPage: 3, signingPosition: "87,140,287,260" },
+  PARTY_B: { signingPage: 3, signingPosition: "343,140,543,260" },
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -31,7 +29,7 @@ export function parseRect(position) {
     .split(",")
     .map((x) => Number(x.trim()));
   if (parts.length !== 4 || parts.some((n) => Number.isNaN(n))) {
-    return { llx: 0, lly: 0, urx: SIG_W_PT, ury: SIG_H_PT };
+    return { llx: 0, lly: 0, urx: BOX_W_PT, ury: BOX_H_PT };
   }
   const [llx, lly, urx, ury] = parts;
   return { llx, lly, urx, ury };
@@ -41,40 +39,31 @@ export function clamp(v, min, max) {
   return Math.max(min, Math.min(max, v));
 }
 
-/**
- * Chuyển đổi VNPT points → pixel position cho drag box.
- * Hàm ngược của pixelToPt — dùng khi khởi tạo vị trí box từ API response.
- */
-export function ptToPixel(containerEl, ptPosition, _totalPages, signingPage) {
+/** Chuyển đổi PDF points → pixel position cho drag box. */
+export function ptToPixel(containerEl, ptPosition, _totalPages, signingPage, pageHOverridePx) {
   const rect = parseRect(ptPosition);
-  const containerW = containerEl?.clientWidth ?? A4_WIDTH_PX;
-  const pageH_px = ESTIMATED_PAGE_HEIGHT_PX;
-
-  const scaleX = containerW / VNPT_PAGE_W_PT;
-  const scaleY = pageH_px / VNPT_PAGE_H_PT;
+  const containerW = containerEl?.clientWidth ?? PDF_PAGE_W_PT;
+  const scale = containerW / PDF_PAGE_W_PT;
+  const pageH_px = pageHOverridePx ?? containerW * A4_SCALE;
 
   const pageOffset = (signingPage - 1) * pageH_px;
-  const yInPage = (VNPT_PAGE_H_PT - rect.ury) * scaleY;
+  const boxTopInPage = (PDF_PAGE_H_PT - rect.ury) * scale;
 
   return {
-    x: rect.llx * scaleX,
-    y: pageOffset + yInPage,
-    w: (rect.urx - rect.llx) * scaleX,
-    h: (rect.ury - rect.lly) * scaleY,
+    x: rect.llx * scale,
+    y: pageOffset + boxTopInPage,
+    w: (rect.urx - rect.llx) * scale,
+    h: (rect.ury - rect.lly) * scale,
   };
 }
 
-/**
- * Chuyển đổi pixel drag position → VNPT points.
- * Logic copy từ admin DragSignatureBox toSigningPosition().
- * VNPT format: "llx,lly,urx,ury" — gốc tọa độ ở góc dưới-trái trang.
- */
-export function pixelToPt(containerEl, pixelPos, totalPages, boxH) {
-  const containerW = containerEl?.clientWidth ?? A4_WIDTH_PX;
-  const pageH_px = ESTIMATED_PAGE_HEIGHT_PX;
+/** Chuyển đổi pixel drag position → PDF points. */
+export function pixelToPt(containerEl, pixelPos, totalPages, boxH, pageHOverridePx) {
+  const containerW = containerEl?.clientWidth ?? PDF_PAGE_W_PT;
+  const scale = containerW / PDF_PAGE_W_PT;
+  const pageH_px = pageHOverridePx ?? containerW * A4_SCALE;
 
-  // Xác định trang dựa trên tâm box
-  const actualBoxH = boxH ?? Math.round((SIG_H_PT * pageH_px) / VNPT_PAGE_H_PT);
+  const actualBoxH = boxH ?? BOX_H_PX;
   const boxCenterY = pixelPos.y + actualBoxH / 2;
   const pageIndex = clamp(
     Math.floor(pageH_px > 0 ? boxCenterY / pageH_px : 0) + 1,
@@ -82,30 +71,17 @@ export function pixelToPt(containerEl, pixelPos, totalPages, boxH) {
     totalPages,
   );
 
-  // Tọa độ Y trong trang hiện tại
-  const pageOffsetY = (pageIndex - 1) * pageH_px;
-  const yInPage = pixelPos.y - pageOffsetY;
+  const pageTopY = (pageIndex - 1) * pageH_px;
+  const localTopY = pixelPos.y - pageTopY;
 
-  // Scale px → pt (admin formula)
-  const scaleX = VNPT_PAGE_W_PT / containerW;
-  const scaleY = VNPT_PAGE_H_PT / pageH_px;
-
-  // Clamp llx so urx stays within page
-  const llx = Math.round(
-    clamp(pixelPos.x * scaleX, 0, VNPT_PAGE_W_PT - SIG_W_PT),
-  );
-  const urx = Math.round(llx + SIG_W_PT);
-
-  // VNPT Y gốc ở đáy → đảo ngược
-  // Clamp ury >= SIG_H_PT để lly = ury - 90 không bao giờ âm
-  const ury = Math.round(
-    clamp(VNPT_PAGE_H_PT - yInPage * scaleY, SIG_H_PT, VNPT_PAGE_H_PT),
-  );
-  const lly = Math.round(ury - SIG_H_PT);
+  const llx_pt = Math.round(clamp(pixelPos.x / scale, 0, PDF_PAGE_W_PT));
+  const urx_pt = Math.round(llx_pt + BOX_W_PT);
+  const ury_pt = Math.round(clamp((pageH_px - localTopY) / scale, 0, PDF_PAGE_H_PT));
+  const lly_pt = Math.round(Math.max(0, ury_pt - BOX_H_PT));
 
   return {
     signingPage: pageIndex,
-    signingPosition: `${llx - 106},${lly - 53},${urx - 106},${ury - 53}`,
+    signingPosition: `${llx_pt},${lly_pt},${urx_pt},${ury_pt}`,
   };
 }
 
