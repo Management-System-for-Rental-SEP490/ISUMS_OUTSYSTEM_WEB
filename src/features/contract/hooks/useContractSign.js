@@ -68,6 +68,7 @@ export function useContractSign({
     const offsetX = 0;
     const offsetY = 0;
     const adjustedPosition = `${llx + offsetX},${lly + offsetY},${urx + offsetX},${ury + offsetY}`;
+    console.log("[sign] raw:", currentPlacement.signingPosition, "→ sent:", adjustedPosition, "page:", currentPlacement.signingPage);
 
     return {
       processCode,
