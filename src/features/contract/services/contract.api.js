@@ -15,6 +15,13 @@ export function getContractPdfUrl(contractId, token) {
   });
 }
 
+export function createVnpayPaymentUrl(invoiceId, token) {
+  return http.post(
+    `/payments/outsystem/vnpay?invoiceId=${invoiceId}&token=${token}`,
+    { invoiceId, bankCode: "VNBANK", locale: "vn" },
+  );
+}
+
 export function uploadCccd(id, token, frontImage, backImage) {
   const form = new FormData();
   form.append("frontImage", frontImage);

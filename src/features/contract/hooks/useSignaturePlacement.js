@@ -44,7 +44,7 @@ export function useSignaturePlacement({ a4Scale, scrollAreaRef, placementMode })
       boxPxSize.h,
       effectivePageHeight,
     );
-  }, [signatureBoxPosition, boxPxSize.h, totalPages]);
+  }, [signatureBoxPosition, boxPxSize.h, totalPages, effectivePageHeight]);
 
   // Khởi tạo vị trí drag box từ PDF points
   function initDragPosition(ptPosition, signingPage, nPages) {
@@ -56,7 +56,7 @@ export function useSignaturePlacement({ a4Scale, scrollAreaRef, placementMode })
     const pageH = effectivePageHeight;
     const px = ptToPixel(el, ptPosition, nPages, signingPage, pageH);
     const cw = el.clientWidth;
-    const totalH = nPages * ESTIMATED_PAGE_HEIGHT_PX;
+    const totalH = nPages * pageH;
 
     setSignatureBoxPosition({
       x: clamp(px.x, 0, Math.max(0, cw - px.w)),
