@@ -1,22 +1,20 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, useEffect } from "react";
 import {
   A4_SCALE,
   A4_WIDTH_PX,
-  A4_HEIGHT_PX,
   clamp,
   ptToPixel,
   pixelToPt,
 } from "../utils/signatureUtils";
 
-export function useSignaturePlacement({ a4Scale, scrollAreaRef, html, placementMode }) {
+export function useSignaturePlacement({ a4Scale, scrollAreaRef, placementMode }) {
   const contractContentRef = useRef(null);
-  const iframeRef = useRef(null);
 
   const [signatureBoxPosition, setSignatureBoxPosition] = useState({ x: 24, y: 24 });
   const [boxPxSize, setBoxPxSize] = useState({ w: 225, h: 113 });
   const [totalPages, setTotalPages] = useState(1);
-  const [measuredPageHeight, setMeasuredPageHeight] = useState(0);
-  const [iframeHeight, setIframeHeight] = useState(A4_HEIGHT_PX);
+
+  const effectivePageHeight = A4_WIDTH_PX * A4_SCALE;
 
   // Auto-scroll đến drag box khi bật placement mode
   useEffect(() => {
@@ -37,14 +35,6 @@ export function useSignaturePlacement({ a4Scale, scrollAreaRef, html, placementM
     scrollEl.scrollTo({ top: Math.max(0, scrollTarget), behavior: "smooth" });
   }, [placementMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Tính chiều cao trang hiệu dụng
-  const effectivePageHeight = useMemo(() => {
-    const ratioPageH = A4_WIDTH_PX * A4_SCALE;
-    if (!measuredPageHeight) return ratioPageH;
-    const diff = Math.abs(measuredPageHeight - ratioPageH) / ratioPageH;
-    return diff <= 0.03 ? measuredPageHeight : ratioPageH;
-  }, [measuredPageHeight, totalPages, html]); // eslint-disable-line react-hooks/exhaustive-deps
-
   // Tính signingPage + signingPosition từ drag position
   const currentPlacement = useMemo(() => {
     return pixelToPt(
@@ -52,29 +42,9 @@ export function useSignaturePlacement({ a4Scale, scrollAreaRef, html, placementM
       signatureBoxPosition,
       totalPages,
       boxPxSize.h,
-      effectivePageHeight || undefined,
+      effectivePageHeight,
     );
   }, [signatureBoxPosition, boxPxSize.h, totalPages, effectivePageHeight]);
-
-  // Ước tính tổng trang từ iframe
-  const handleIframeLoad = () => {
-    const iframe = iframeRef.current;
-    if (!iframe) return;
-
-    const innerH =
-      iframe.contentDocument?.documentElement?.scrollHeight ??
-      iframe.contentDocument?.body?.scrollHeight ??
-      A4_HEIGHT_PX;
-
-    setIframeHeight(innerH);
-
-    const ratioPageH = A4_WIDTH_PX * A4_SCALE;
-    if (ratioPageH <= 0) return;
-
-    const estimatedPages = Math.max(1, Math.ceil(innerH / ratioPageH));
-    setTotalPages((prev) => Math.max(prev, estimatedPages));
-    if (estimatedPages > 0) setMeasuredPageHeight(innerH / estimatedPages);
-  };
 
   // Khởi tạo vị trí drag box từ PDF points
   function initDragPosition(ptPosition, signingPage, nPages) {
@@ -83,7 +53,7 @@ export function useSignaturePlacement({ a4Scale, scrollAreaRef, html, placementM
 
     setTotalPages(nPages);
 
-    const pageH = effectivePageHeight || el.clientWidth * A4_SCALE;
+    const pageH = effectivePageHeight;
     const px = ptToPixel(el, ptPosition, nPages, signingPage, pageH);
     const cw = el.clientWidth;
     const totalH = nPages * pageH;
@@ -97,14 +67,12 @@ export function useSignaturePlacement({ a4Scale, scrollAreaRef, html, placementM
 
   return {
     contractContentRef,
-    iframeRef,
     signatureBoxPosition,
     setSignatureBoxPosition,
     boxPxSize,
-    iframeHeight,
     totalPages,
+    setTotalPages,
     currentPlacement,
     initDragPosition,
-    handleIframeLoad,
   };
 }

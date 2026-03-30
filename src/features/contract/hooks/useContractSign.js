@@ -1,14 +1,14 @@
 import { useRef, useState } from "react";
 import { toast } from "react-toastify";
-import { signEContract, readyEcontract } from "../services/contract.api";
+import { signEContract } from "../services/contract.api";
 import {
   getDownloadUrlFromSignResponse,
-  getSignContextFromResponse,
   getDefaultPosition,
 } from "../utils/signatureUtils";
 
 export function useContractSign({
   processCode,
+  signingCtx: preloadedCtx,
   currentPlacement,
   initDragPosition,
   placementMode,
@@ -24,7 +24,39 @@ export function useContractSign({
   const [initialStep, setInitialStep] = useState(1);
   const [downloadUrl, setDownloadUrl] = useState(null);
 
-  // Build payload gửi VNPT
+  // ─── Step hiện tại (1–4): Điều khoản → Tạo chữ ký → Vị trí ký → Nhập OTP ──
+  const currentStep = (() => {
+    if (signOpen && initialStep === 2) return 4;
+    if (placementMode) return 3;
+    if (signOpen && initialStep === 1) return 2;
+    if (confirmOpen) return 1;
+    return 0;
+  })();
+
+  // ─── Rollback về bước n ────────────────────────────────────────────────────
+  const goToStep = (n) => {
+    setConfirmOpen(false);
+    setSignOpen(false);
+    setPlacementMode(false);
+
+    if (n === 1) {
+      setIsReadyToSign(false);
+      signContextRef.current = null;
+      signPayloadRef.current = null;
+      setConfirmOpen(true);
+    } else if (n === 2) {
+      signPayloadRef.current = null;
+      setInitialStep(1);
+      setSignOpen(true);
+    } else if (n === 3) {
+      setPlacementMode(true);
+    } else if (n === 4) {
+      setInitialStep(2);
+      setSignOpen(true);
+    }
+  };
+
+  // ─── Build payload gửi VNPT ────────────────────────────────────────────────
   const buildSignPayload = (signaturePayload, otp) => {
     const ctx = signContextRef.current;
     if (!ctx?.processId)
@@ -33,8 +65,8 @@ export function useContractSign({
     const [llx, lly, urx, ury] = currentPlacement.signingPosition
       .split(",")
       .map(Number);
-    const offsetX = -30;
-    const offsetY = -263;
+    const offsetX = 0;
+    const offsetY = 0;
     const adjustedPosition = `${llx + offsetX},${lly + offsetY},${urx + offsetX},${ury + offsetY}`;
 
     return {
@@ -159,35 +191,30 @@ export function useContractSign({
     setConfirmOpen(true);
   };
 
-  const handleConfirmAgree = async () => {
-    try {
-      const res = await readyEcontract(processCode);
-      const ctx = getSignContextFromResponse(res);
-      signContextRef.current = ctx;
-
-      const nPages = Math.max(1, Number(ctx.signingPage) || 1);
-
-      const defaultPos = getDefaultPosition(ctx.signerRole);
-      const ptPosition = ctx.signingPosition ?? defaultPos.signingPosition;
-      const ptPage = ctx.signingPosition
-        ? (ctx.signingPage ?? defaultPos.signingPage)
-        : defaultPos.signingPage;
-
-      signContextRef.current.signingPage = ptPage;
-      initDragPosition(ptPosition, ptPage, nPages);
-
-      setIsReadyToSign(true);
-      setConfirmOpen(false);
-      setInitialStep(1);
-      setSignOpen(true);
-      toast.success("Xác nhận thành công, vui lòng tạo chữ ký.");
-    } catch (err) {
-      toast.error(
-        err?.response?.data?.message ||
-          err?.message ||
-          "Không thể gửi yêu cầu xác nhận.",
-      );
+  // ─── Dùng signingCtx đã load sẵn, mở SignModal ngay (bỏ CCCD) ──────────────
+  const handleConfirmAgree = () => {
+    const ctx = preloadedCtx;
+    if (!ctx?.processId) {
+      toast.error("Không thể xác nhận, vui lòng tải lại trang.");
+      return;
     }
+
+    signContextRef.current = ctx;
+
+    const nPages = Math.max(1, Number(ctx.signingPage) || 1);
+    const defaultPos = getDefaultPosition(ctx.signerRole);
+    const ptPosition = ctx.signingPosition ?? defaultPos.signingPosition;
+    const ptPage = ctx.signingPosition
+      ? (ctx.signingPage ?? defaultPos.signingPage)
+      : defaultPos.signingPage;
+
+    signContextRef.current.signingPage = ptPage;
+    initDragPosition(ptPosition, ptPage, nPages);
+
+    setIsReadyToSign(true);
+    setConfirmOpen(false);
+    setInitialStep(1);
+    setSignOpen(true);
   };
 
   return {
@@ -200,6 +227,8 @@ export function useContractSign({
     signLoading,
     initialStep,
     downloadUrl,
+    currentStep,
+    goToStep,
     handleConfirm,
     handleConfirmAgree,
     handleSignSubmit,

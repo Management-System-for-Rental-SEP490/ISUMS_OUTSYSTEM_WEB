@@ -7,6 +7,7 @@ export default function ConfirmModal({
   title = "Ký hợp đồng",
   confirmLabel = "Tiếp tục",
   cancelLabel = "Hủy bỏ",
+  stepIndicator,
 }) {
   const [checked, setChecked] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -25,6 +26,11 @@ export default function ConfirmModal({
   return (
     <div className="fixed inset-0 z-[9999] bg-black/45 flex items-center justify-center p-4">
       <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+        {stepIndicator && (
+          <div className="px-8 pt-6 pb-5 border-b border-gray-100">
+            {stepIndicator}
+          </div>
+        )}
         <div className="px-6 py-4 flex items-center justify-between border-b bg-white/95 backdrop-blur">
           <h3 className="text-base md:text-lg font-semibold text-gray-900">
             {title}
