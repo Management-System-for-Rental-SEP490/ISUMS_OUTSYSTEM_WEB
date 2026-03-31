@@ -3,7 +3,7 @@ import { http } from "../../../shared/api/http";
 //   return http.post("/econtracts/outsystem", { processCode });
 // }
 export function readyEcontract(processCode) {
-  return http.post("/econtracts/processCode", { processCode });
+  return http.post("/econtracts/processCode", { processCode }, { silent500: true });
 }
 export function signEContract(payload) {
   return http.post("/econtracts/sign", payload);
@@ -13,6 +13,13 @@ export function getContractPdfUrl(contractId, token) {
   return http.get(`/econtracts/${contractId}/pdf-url`, {
     headers: { "X-Contract-Token": token },
   });
+}
+
+export function createVnpayPaymentUrl(invoiceId, token) {
+  return http.post(
+    `/payments/outsystem/vnpay?invoiceId=${invoiceId}&token=${token}`,
+    { invoiceId, bankCode: "VNBANK", locale: "vn" },
+  );
 }
 
 export function uploadCccd(id, token, frontImage, backImage) {

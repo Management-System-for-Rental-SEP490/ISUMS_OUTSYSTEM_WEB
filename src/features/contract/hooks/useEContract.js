@@ -28,7 +28,9 @@ export function useEContract(processCode) {
         setSigningCtx(getSignContextFromResponse(res));
       } catch (err) {
         if (!cancelled) {
-          setError(err?.response?.data?.message || err?.message || "Lỗi tải hợp đồng.");
+          setError(err?.response?.data?.message === "Unexpected error"
+  ? "Lỗi máy chủ, vui lòng thử lại sau."
+  : err?.response?.data?.message || err?.message || "Lỗi tải hợp đồng.");
         }
       } finally {
         if (!cancelled) setLoading(false);

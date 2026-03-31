@@ -1,4 +1,125 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
+
+const STEPS = [
+  { label: "Đang tải lên hình ảnh...", range: [0, 40] },
+  { label: "Đang phân tích dữ liệu OCR...", range: [40, 75] },
+  { label: "Kiểm tra tính hợp lệ và bảo mật...", range: [75, 100] },
+];
+
+function CccdLoadingOverlay() {
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    // Giả lập progress ~8s: tăng dần đến 95% rồi dừng chờ server
+    const interval = setInterval(() => {
+      setProgress((p) => {
+        if (p >= 95) { clearInterval(interval); return 95; }
+        // Tốc độ chậm dần khi gần cuối
+        const increment = p < 40 ? 2 : p < 75 ? 1 : 0.4;
+        return Math.min(p + increment, 95);
+      });
+    }, 160);
+    return () => clearInterval(interval);
+  }, []);
+
+  const pct = Math.round(progress);
+  const activeStep = STEPS.findIndex((s) => pct < s.range[1]);
+  const currentStep = activeStep === -1 ? STEPS.length - 1 : activeStep;
+
+  // SVG circular progress
+  const r = 44;
+  const circ = 2 * Math.PI * r;
+  const dash = circ * (pct / 100);
+
+  return (
+    <div className="flex flex-col items-center justify-center px-8 py-10 gap-6">
+      {/* Circular progress */}
+      <div className="relative flex items-center justify-center w-28 h-28">
+        <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r={r} fill="none" stroke="#e2e8f0" strokeWidth="8" />
+          <circle
+            cx="50" cy="50" r={r} fill="none"
+            stroke="#0d7a8a" strokeWidth="8"
+            strokeLinecap="round"
+            strokeDasharray={`${dash} ${circ}`}
+            style={{ transition: "stroke-dasharray 0.16s linear" }}
+          />
+        </svg>
+        <div className="flex flex-col items-center">
+          <svg className="w-6 h-6 text-[#0d7a8a] mb-0.5" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" clipRule="evenodd"
+              d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" />
+          </svg>
+          <span className="text-base font-bold text-[#0d7a8a]">{pct}%</span>
+        </div>
+      </div>
+
+      {/* Title */}
+      <div className="text-center">
+        <p className="text-lg font-bold text-gray-800">Đang tải lên và xác minh CCCD</p>
+        <p className="mt-1 text-sm text-gray-500">Vui lòng giữ kết nối, chúng tôi đang xử lý bảo mật cho tài liệu của bạn.</p>
+      </div>
+
+      {/* Steps */}
+      <div className="w-full flex flex-col gap-3">
+        {STEPS.map((step, i) => {
+          const done = pct >= step.range[1];
+          const active = i === currentStep && !done;
+          return (
+            <div
+              key={i}
+              className={[
+                "flex items-center gap-3 px-4 py-3 rounded-xl border transition-colors",
+                done ? "bg-white border-gray-200" : active ? "bg-teal-50 border-teal-200" : "bg-white border-gray-100",
+              ].join(" ")}
+            >
+              {/* Icon */}
+              <div className={[
+                "w-9 h-9 rounded-full flex items-center justify-center shrink-0",
+                done ? "bg-green-500" : active ? "bg-white border-2 border-teal-400" : "bg-gray-100",
+              ].join(" ")}>
+                {done ? (
+                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                  </svg>
+                ) : active ? (
+                  <svg className="w-4 h-4 text-teal-500 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" clipRule="evenodd"
+                      d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" />
+                  </svg>
+                )}
+              </div>
+              {/* Text */}
+              <div>
+                <p className="text-sm font-medium text-gray-700">{step.label}</p>
+                <p className={[
+                  "text-xs font-medium",
+                  done ? "text-green-500" : active ? "text-teal-500" : "text-gray-400",
+                ].join(" ")}>
+                  {done ? "Hoàn tất" : active ? "Đang xử lý" : "Chờ đợi"}
+                </p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Footer badge */}
+      <div className="flex items-center gap-1.5 text-xs text-gray-400 mt-1">
+        <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" clipRule="evenodd"
+            d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" />
+        </svg>
+        BẢO MẬT CHUẨN AES-256
+      </div>
+    </div>
+  );
+}
 
 /** Xoay ảnh bằng canvas và trả về File mới đã rotate */
 async function rotateImageFile(file, degrees) {
@@ -186,8 +307,11 @@ export default function CccdModal({ open, onClose, onConfirm, stepIndicator }) {
           </button>
         </div>
 
+        {/* Loading overlay */}
+        {loading && <CccdLoadingOverlay />}
+
         {/* Upload boxes */}
-        <div className="px-6 pt-3 pb-4">
+        <div className={`px-6 pt-3 pb-4 ${loading ? "hidden" : ""}`}>
           <div className="grid grid-cols-2 gap-4">
             <ImageUploadBox
               label="Mặt trước CCCD"
@@ -207,7 +331,7 @@ export default function CccdModal({ open, onClose, onConfirm, stepIndicator }) {
         </div>
 
         {/* Tips */}
-        <div className="mx-6 mb-5 rounded-xl bg-slate-50 border border-slate-200 p-4 flex gap-3">
+        <div className={`mx-6 mb-5 rounded-xl bg-slate-50 border border-slate-200 p-4 flex gap-3 ${loading ? "hidden" : ""}`}>
           <svg className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
             <path fillRule="evenodd" clipRule="evenodd"
               d="M18 10A8 8 0 11 2 10a8 8 0 0116 0zm-7-4a1 1 0 10-2 0v1a1 1 0 102 0V6zm-1 3a1 1 0 00-1 1v4a1 1 0 102 0v-4a1 1 0 00-1-1z" />
@@ -222,7 +346,7 @@ export default function CccdModal({ open, onClose, onConfirm, stepIndicator }) {
         </div>
 
         {/* Footer */}
-        <div className="px-6 pb-6 flex items-center justify-end gap-4">
+        <div className={`px-6 pb-6 flex items-center justify-end gap-4 ${loading ? "hidden" : ""}`}>
           <button
             type="button"
             onClick={handleClose}
