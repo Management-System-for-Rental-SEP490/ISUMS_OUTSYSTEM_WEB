@@ -28,7 +28,9 @@ function App() {
           path="*"
           element={
             <div style={{ padding: "2rem", textAlign: "center" }}>
-              <p>Link không hợp lệ. Vui lòng sử dụng đường dẫn từ email.</p>
+              <p>
+                Đường dẫn không hợp lệ. Vui lòng sử dụng đường dẫn từ email.
+              </p>
             </div>
           }
         />

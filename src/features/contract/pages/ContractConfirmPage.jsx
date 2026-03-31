@@ -37,7 +37,7 @@ export function ContractConfirmPage() {
   // Fetch PDF URL khi mount
   useEffect(() => {
     if (!contractId || !token) {
-      setFetchError("Link không hợp lệ.");
+      setFetchError("Đường dẫn không hợp lệ.");
       setFetchLoading(false);
       return;
     }
@@ -83,10 +83,16 @@ export function ContractConfirmPage() {
   };
 
   const handleCccdConfirm = async (frontImage, backImage) => {
-    await uploadCccd(contractId, token, frontImage, backImage);
-    setCccdDone(true);
-    setCccdOpen(false);
-    toast.success("Xác minh CCCD thành công! Hợp đồng đã sẵn sàng để ký.");
+    try {
+      await uploadCccd(contractId, token, frontImage, backImage);
+      setCccdDone(true);
+      setCccdOpen(false);
+      toast.success("Xác minh CCCD thành công! Hợp đồng đã sẵn sàng để ký.");
+    } catch (err) {
+      const msg = err?.response?.data?.message || "Xác minh CCCD thất bại, vui lòng thử lại.";
+      toast.error(msg);
+      throw err; // re-throw để CccdModal quay về form upload
+    }
   };
 
   // ── Loading / Error toàn trang ──────────────────────────────────────────────

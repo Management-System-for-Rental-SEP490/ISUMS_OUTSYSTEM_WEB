@@ -11,7 +11,7 @@ export default function PaymentRedirectPage() {
 
   useEffect(() => {
     if (!invoiceId) {
-      setError("Link không hợp lệ. Thiếu thông tin invoiceId.");
+      setError("Đường dẫn không hợp lệ. Thiếu thông tin invoiceId.");
       return;
     }
 

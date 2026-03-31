@@ -3,7 +3,7 @@ import { http } from "../../../shared/api/http";
 //   return http.post("/econtracts/outsystem", { processCode });
 // }
 export function readyEcontract(processCode) {
-  return http.post("/econtracts/processCode", { processCode });
+  return http.post("/econtracts/processCode", { processCode }, { silent500: true });
 }
 export function signEContract(payload) {
   return http.post("/econtracts/sign", payload);
