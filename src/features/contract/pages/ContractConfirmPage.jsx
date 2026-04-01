@@ -83,16 +83,10 @@ export function ContractConfirmPage() {
   };
 
   const handleCccdConfirm = async (frontImage, backImage) => {
-    try {
-      await uploadCccd(contractId, token, frontImage, backImage);
-      setCccdDone(true);
-      setCccdOpen(false);
-      toast.success("Xác minh CCCD thành công! Hợp đồng đã sẵn sàng để ký.");
-    } catch (err) {
-      const msg = err?.response?.data?.message || "Xác minh CCCD thất bại, vui lòng thử lại.";
-      toast.error(msg);
-      throw err; // re-throw để CccdModal quay về form upload
-    }
+    await uploadCccd(contractId, token, frontImage, backImage);
+    setCccdDone(true);
+    setCccdOpen(false);
+    toast.success("Xác minh CCCD thành công! Hợp đồng đã sẵn sàng để ký.");
   };
 
   // ── Loading / Error toàn trang ──────────────────────────────────────────────
