@@ -9,6 +9,7 @@ const STEPS = [
 
 function CccdLoadingOverlay({ done, onDone }) {
   const [progress, setProgress] = useState(0);
+  const progressRef = useRef(0);
 
   // Phase 1: tăng dần đến 95
   useEffect(() => {
@@ -19,18 +20,21 @@ function CccdLoadingOverlay({ done, onDone }) {
           return 95;
         }
         const increment = p < 40 ? 2 : p < 75 ? 1 : 0.4;
-        return Math.min(p + increment, 99);
+        const next = Math.min(p + increment, 95);
+        progressRef.current = next;
+        return next;
       });
     }, 160);
     return () => clearInterval(interval);
   }, []);
 
-  // Phase 2: khi API xong, sprint nhanh 95→100 rồi gọi onDone
+  // Phase 2: khi API xong,      sprint nhanh từ vị trí hiện tại lên 100 rồi gọi onDone
   useEffect(() => {
     if (!done) return;
-    let p = 95;
+    let p = Math.round(progressRef.current);
     const sprint = setInterval(() => {
       p += 1;
+      progressRef.current = p;
       setProgress(p);
       if (p >= 100) {
         clearInterval(sprint);
@@ -239,7 +243,311 @@ async function rotateImageFile(file, degrees) {
   );
 }
 
-function ImageUploadBox({ label, preview, rotation, onSelect, onRotate }) {
+const clamp = (val, min, max) => Math.min(Math.max(val, min), max);
+
+/** Modal cắt ảnh */
+function CropModal({ src, originalFile, onCrop, onCancel }) {
+  const imgRef = useRef(null);
+  const dragRef = useRef(null);
+  const [cropBox, setCropBox] = useState(null);
+
+  const initCropBox = () => {
+    const img = imgRef.current;
+    if (!img) return;
+    const w = img.clientWidth;
+    const h = img.clientHeight;
+    const m = 0.08;
+    setCropBox({ x: w * m, y: h * m, w: w * (1 - 2 * m), h: h * (1 - 2 * m) });
+  };
+
+  useEffect(() => {
+    const onMouseMove = (e) => {
+      const d = dragRef.current;
+      if (!d || !imgRef.current) return;
+      const img = imgRef.current;
+      const imgW = img.clientWidth;
+      const imgH = img.clientHeight;
+      const dx = e.clientX - d.startX;
+      const dy = e.clientY - d.startY;
+      const minSize = 24;
+      let { x, y, w, h } = d.box;
+      const type = d.type;
+
+      if (type === "move") {
+        x = clamp(d.box.x + dx, 0, imgW - d.box.w);
+        y = clamp(d.box.y + dy, 0, imgH - d.box.h);
+      } else {
+        if (type.includes("l")) {
+          const newX = clamp(d.box.x + dx, 0, d.box.x + d.box.w - minSize);
+          w = d.box.x + d.box.w - newX;
+          x = newX;
+        }
+        if (type.includes("r")) {
+          w = clamp(d.box.w + dx, minSize, imgW - d.box.x);
+        }
+        if (type.includes("t")) {
+          const newY = clamp(d.box.y + dy, 0, d.box.y + d.box.h - minSize);
+          h = d.box.y + d.box.h - newY;
+          y = newY;
+        }
+        if (type.includes("b")) {
+          h = clamp(d.box.h + dy, minSize, imgH - d.box.y);
+        }
+      }
+      setCropBox({ x, y, w, h });
+    };
+
+    const onMouseUp = () => {
+      dragRef.current = null;
+    };
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+  }, []);
+
+  const startDrag = (e, type) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragRef.current = {
+      type,
+      startX: e.clientX,
+      startY: e.clientY,
+      box: { ...cropBox },
+    };
+  };
+
+  const handleConfirm = () => {
+    const img = imgRef.current;
+    if (!img || !cropBox) return;
+    const scaleX = img.naturalWidth / img.clientWidth;
+    const scaleY = img.naturalHeight / img.clientHeight;
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(cropBox.w * scaleX);
+    canvas.height = Math.round(cropBox.h * scaleY);
+    canvas
+      .getContext("2d")
+      .drawImage(
+        img,
+        cropBox.x * scaleX,
+        cropBox.y * scaleY,
+        cropBox.w * scaleX,
+        cropBox.h * scaleY,
+        0,
+        0,
+        canvas.width,
+        canvas.height,
+      );
+    canvas.toBlob(
+      (blob) =>
+        onCrop(
+          new File([blob], originalFile.name, { type: originalFile.type }),
+          URL.createObjectURL(blob),
+        ),
+      originalFile.type,
+      0.95,
+    );
+  };
+
+  const handles = [
+    { id: "tl", style: { top: -5, left: -5, cursor: "nw-resize" } },
+    {
+      id: "tc",
+      style: { top: -5, left: "50%", marginLeft: -5, cursor: "n-resize" },
+    },
+    { id: "tr", style: { top: -5, right: -5, cursor: "ne-resize" } },
+    {
+      id: "ml",
+      style: { top: "50%", left: -5, marginTop: -5, cursor: "w-resize" },
+    },
+    {
+      id: "mr",
+      style: { top: "50%", right: -5, marginTop: -5, cursor: "e-resize" },
+    },
+    { id: "bl", style: { bottom: -5, left: -5, cursor: "sw-resize" } },
+    {
+      id: "bc",
+      style: { bottom: -5, left: "50%", marginLeft: -5, cursor: "s-resize" },
+    },
+    { id: "br", style: { bottom: -5, right: -5, cursor: "se-resize" } },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-10000 bg-black/70 flex items-center justify-center p-4">
+      <div
+        className="bg-white rounded-2xl shadow-xl flex flex-col w-full max-w-3xl"
+        style={{ maxHeight: "90vh" }}
+      >
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
+          <div>
+            <h3 className="text-base font-bold text-gray-800">Cắt ảnh</h3>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Kéo để di chuyển · Kéo góc/cạnh để thay đổi vùng cắt
+            </p>
+          </div>
+          <button
+            onClick={onCancel}
+            className="text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        </div>
+
+        {/* Image area */}
+        <div
+          className="flex-1 flex items-center justify-center p-6 bg-gray-900 overflow-auto"
+          style={{ minHeight: "280px" }}
+        >
+          <div className="relative inline-block select-none">
+            <img
+              ref={imgRef}
+              src={src}
+              alt="Cắt ảnh"
+              onLoad={initCropBox}
+              draggable={false}
+              style={{ maxWidth: "100%", maxHeight: "55vh", display: "block" }}
+            />
+
+            {cropBox && (
+              <>
+                {/* SVG mask overlay */}
+                <svg
+                  className="absolute inset-0 pointer-events-none"
+                  style={{ width: "100%", height: "100%" }}
+                >
+                  <defs>
+                    <mask id="cccd-crop-mask">
+                      <rect width="100%" height="100%" fill="white" />
+                      <rect
+                        x={cropBox.x}
+                        y={cropBox.y}
+                        width={cropBox.w}
+                        height={cropBox.h}
+                        fill="black"
+                      />
+                    </mask>
+                  </defs>
+                  {/* Dark area outside crop */}
+                  <rect
+                    width="100%"
+                    height="100%"
+                    fill="rgba(0,0,0,0.55)"
+                    mask="url(#cccd-crop-mask)"
+                  />
+                  {/* Crop border */}
+                  <rect
+                    x={cropBox.x}
+                    y={cropBox.y}
+                    width={cropBox.w}
+                    height={cropBox.h}
+                    fill="none"
+                    stroke="white"
+                    strokeWidth={1.5}
+                  />
+                  {/* Rule-of-thirds grid */}
+                  <line
+                    x1={cropBox.x + cropBox.w / 3}
+                    y1={cropBox.y}
+                    x2={cropBox.x + cropBox.w / 3}
+                    y2={cropBox.y + cropBox.h}
+                    stroke="rgba(255,255,255,0.3)"
+                    strokeWidth={1}
+                  />
+                  <line
+                    x1={cropBox.x + (2 * cropBox.w) / 3}
+                    y1={cropBox.y}
+                    x2={cropBox.x + (2 * cropBox.w) / 3}
+                    y2={cropBox.y + cropBox.h}
+                    stroke="rgba(255,255,255,0.3)"
+                    strokeWidth={1}
+                  />
+                  <line
+                    x1={cropBox.x}
+                    y1={cropBox.y + cropBox.h / 3}
+                    x2={cropBox.x + cropBox.w}
+                    y2={cropBox.y + cropBox.h / 3}
+                    stroke="rgba(255,255,255,0.3)"
+                    strokeWidth={1}
+                  />
+                  <line
+                    x1={cropBox.x}
+                    y1={cropBox.y + (2 * cropBox.h) / 3}
+                    x2={cropBox.x + cropBox.w}
+                    y2={cropBox.y + (2 * cropBox.h) / 3}
+                    stroke="rgba(255,255,255,0.3)"
+                    strokeWidth={1}
+                  />
+                </svg>
+
+                {/* Interactive move/resize layer */}
+                <div
+                  className="absolute cursor-move"
+                  style={{
+                    left: cropBox.x,
+                    top: cropBox.y,
+                    width: cropBox.w,
+                    height: cropBox.h,
+                  }}
+                  onMouseDown={(e) => startDrag(e, "move")}
+                >
+                  {handles.map(({ id, style }) => (
+                    <div
+                      key={id}
+                      className="absolute w-2.5 h-2.5 bg-white border border-gray-400 rounded-sm shadow"
+                      style={{ ...style, position: "absolute" }}
+                      onMouseDown={(e) => startDrag(e, id)}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 shrink-0">
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors"
+          >
+            Hủy
+          </button>
+          <button
+            onClick={handleConfirm}
+            className="px-6 py-2 text-sm font-semibold bg-[#1a3d52] text-white rounded-full hover:bg-[#15324a] transition-colors"
+          >
+            Áp dụng
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ImageUploadBox({
+  label,
+  preview,
+  rotation,
+  onSelect,
+  onRotate,
+  onCrop,
+}) {
   const inputRef = useRef(null);
 
   const handleChange = (e) => {
@@ -291,31 +599,6 @@ function ImageUploadBox({ label, preview, rotation, onSelect, onRotate }) {
                 />
               </svg>
             </span>
-            {/* Nút xoay ảnh */}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onRotate();
-              }}
-              title="Xoay ảnh 90°"
-              className="absolute bottom-2 right-2 z-10 flex items-center gap-1 px-2 py-1 rounded-full bg-white/90 border border-gray-200 shadow text-xs font-medium text-gray-600 hover:bg-white hover:text-teal-600 transition-colors"
-            >
-              <svg
-                className="w-3.5 h-3.5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                />
-              </svg>
-              Xoay
-            </button>
             {/* Nút đổi ảnh */}
             <button
               type="button"
@@ -340,6 +623,56 @@ function ImageUploadBox({ label, preview, rotation, onSelect, onRotate }) {
                 />
               </svg>
               Đổi ảnh
+            </button>
+            {/* Nút cắt ảnh */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onCrop();
+              }}
+              title="Cắt ảnh"
+              className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1 px-2 py-1 rounded-full bg-white/90 border border-gray-200 shadow text-xs font-medium text-gray-600 hover:bg-white hover:text-purple-600 transition-colors"
+            >
+              <svg
+                className="w-3.5 h-3.5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 2v14a2 2 0 002 2h14M2 6h14a2 2 0 012 2v14"
+                />
+              </svg>
+              Cắt
+            </button>
+            {/* Nút xoay ảnh */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRotate();
+              }}
+              title="Xoay ảnh 90°"
+              className="absolute bottom-2 right-2 z-10 flex items-center gap-1 px-2 py-1 rounded-full bg-white/90 border border-gray-200 shadow text-xs font-medium text-gray-600 hover:bg-white hover:text-teal-600 transition-colors"
+            >
+              <svg
+                className="w-3.5 h-3.5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                />
+              </svg>
+              Xoay
             </button>
           </>
         ) : (
@@ -396,6 +729,7 @@ export default function CccdModal({ open, onClose, onConfirm, stepIndicator }) {
   const [loading, setLoading] = useState(false);
   const [apiDone, setApiDone] = useState(false);
   const [submitError, setSubmitError] = useState(null);
+  const [cropTarget, setCropTarget] = useState(null); // 'front' | 'back'
 
   if (!open) return null;
 
@@ -410,6 +744,19 @@ export default function CccdModal({ open, onClose, onConfirm, stepIndicator }) {
       setBackPreview(url);
       setBackRotation(0);
     }
+  };
+
+  const handleCropDone = (croppedFile, croppedUrl) => {
+    if (cropTarget === "front") {
+      setFrontFile(croppedFile);
+      setFrontPreview(croppedUrl);
+      setFrontRotation(0);
+    } else {
+      setBackFile(croppedFile);
+      setBackPreview(croppedUrl);
+      setBackRotation(0);
+    }
+    setCropTarget(null);
   };
 
   const handleSubmit = async () => {
@@ -498,6 +845,7 @@ export default function CccdModal({ open, onClose, onConfirm, stepIndicator }) {
               rotation={frontRotation}
               onSelect={(f) => handleSelect("front", f)}
               onRotate={() => setFrontRotation((r) => (r + 90) % 360)}
+              onCrop={() => setCropTarget("front")}
             />
             <ImageUploadBox
               label="Mặt sau CCCD"
@@ -505,6 +853,7 @@ export default function CccdModal({ open, onClose, onConfirm, stepIndicator }) {
               rotation={backRotation}
               onSelect={(f) => handleSelect("back", f)}
               onRotate={() => setBackRotation((r) => (r + 90) % 360)}
+              onCrop={() => setCropTarget("back")}
             />
           </div>
         </div>
@@ -582,6 +931,16 @@ export default function CccdModal({ open, onClose, onConfirm, stepIndicator }) {
           </button>
         </div>
       </div>
+
+      {/* Crop modal */}
+      {cropTarget && (
+        <CropModal
+          src={cropTarget === "front" ? frontPreview : backPreview}
+          originalFile={cropTarget === "front" ? frontFile : backFile}
+          onCrop={handleCropDone}
+          onCancel={() => setCropTarget(null)}
+        />
+      )}
     </div>
   );
 }
