@@ -72,6 +72,7 @@ export function ContractViewPage() {
         open={signing.confirmOpen}
         onClose={() => signing.setConfirmOpen(false)}
         onConfirm={signing.handleConfirmAgree}
+        onReject={signing.handleReject}
         stepIndicator={stepIndicatorEl}
       />
       <SignModal

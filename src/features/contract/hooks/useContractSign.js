@@ -193,6 +193,42 @@ export function useContractSign({
   };
 
   // ─── Dùng signingCtx đã load sẵn, mở SignModal ngay (bỏ CCCD) ──────────────
+  const handleReject = async (reason) => {
+    if (!processCode) {
+      toast.error("Thiếu processCode từ URL.");
+      return;
+    }
+    const ctx = preloadedCtx;
+    if (!ctx?.processId) {
+      toast.error("Không thể từ chối, vui lòng tải lại trang.");
+      return;
+    }
+    try {
+      await signEContract({
+        processCode,
+        token: ctx.accessToken,
+        processId: ctx.processId,
+        reason: reason ?? "",
+        reject: true,
+        otp: null,
+        signatureDisplayMode: 2,
+        signatureImage: null,
+        signingPage: null,
+        signatureText: null,
+        signingPosition: null,
+        fontSize: 8,
+        showReason: true,
+        confirmTermsConditions: true,
+      });
+      toast.success("Đã từ chối ký hợp đồng.");
+      setConfirmOpen(false);
+    } catch (err) {
+      toast.error(
+        err?.response?.data?.message || err?.message || "Lỗi từ chối ký hợp đồng.",
+      );
+    }
+  };
+
   const handleConfirmAgree = () => {
     const ctx = preloadedCtx;
     if (!ctx?.processId) {
@@ -232,6 +268,7 @@ export function useContractSign({
     goToStep,
     handleConfirm,
     handleConfirmAgree,
+    handleReject,
     handleSignSubmit,
     handleResendOtp,
   };
