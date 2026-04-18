@@ -4,6 +4,7 @@ export default function ConfirmModal({
   open,
   onClose,
   onConfirm,
+  onReject,
   title = "Ký hợp đồng",
   confirmLabel = "Tiếp tục",
   cancelLabel = "Hủy bỏ",
@@ -11,6 +12,9 @@ export default function ConfirmModal({
 }) {
   const [checked, setChecked] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showRejectBox, setShowRejectBox] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejectLoading, setRejectLoading] = useState(false);
 
   if (!open) return null;
 
@@ -20,6 +24,18 @@ export default function ConfirmModal({
       await onConfirm();
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRejectSubmit = async () => {
+    if (!rejectReason.trim()) return;
+    setRejectLoading(true);
+    try {
+      await onReject(rejectReason.trim());
+      setShowRejectBox(false);
+      setRejectReason("");
+    } finally {
+      setRejectLoading(false);
     }
   };
 
@@ -38,7 +54,7 @@ export default function ConfirmModal({
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-700 disabled:opacity-50 transition-colors"
-            disabled={loading}
+            disabled={loading || rejectLoading}
           >
             <svg
               className="w-6 h-6"
@@ -80,18 +96,78 @@ export default function ConfirmModal({
             </label>
           </div>
 
-          <div className="text-center pt-2">
-            <p className="text-sm font-semibold text-red-500">
-              Nhấn “Tiếp tục” để chuyển sang bước ký hợp đồng.
-            </p>
-          </div>
+          {showRejectBox && (
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-red-600">
+                Vui lòng nhập lý do từ chối ký:
+              </p>
+              <textarea
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                rows={3}
+                placeholder="Nhập lý do từ chối..."
+                className="w-full rounded-lg border border-red-300 px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-400 resize-none"
+                disabled={rejectLoading}
+              />
+              <div className="flex gap-2 justify-end">
+                <button
+                  type="button"
+                  onClick={() => { setShowRejectBox(false); setRejectReason(""); }}
+                  disabled={rejectLoading}
+                  className="px-4 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-60"
+                >
+                  Quay lại
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRejectSubmit}
+                  disabled={!rejectReason.trim() || rejectLoading}
+                  className="px-4 py-1.5 rounded-lg text-sm font-bold bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {rejectLoading ? "ĐANG GỬI..." : "Xác nhận từ chối"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {!showRejectBox && (
+            <div className="text-center pt-2">
+              <p className="text-sm font-semibold text-red-500">
+                Nhấn "Tiếp tục" để chuyển sang bước ký hợp đồng.
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="px-6 py-4 flex gap-4 justify-end border-t bg-gray-50/60">
+          {!showRejectBox && onReject && (
+            <button
+              type="button"
+              onClick={() => setShowRejectBox(true)}
+              disabled={loading}
+              className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-bold text-red-600 hover:bg-red-50 transition-colors disabled:opacity-60"
+            >
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M18.364 5.636l-12.728 12.728M5.636 5.636l12.728 12.728"
+                />
+              </svg>
+              Từ chối ký
+            </button>
+          )}
+
           <button
             type="button"
             onClick={onClose}
-            disabled={loading}
+            disabled={loading || rejectLoading}
             className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-bold text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-60"
           >
             <svg
