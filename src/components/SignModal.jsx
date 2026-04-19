@@ -1,352 +1,866 @@
-import React, { useRef, useState, useCallback, useEffect } from "react";
+  import React, { useRef, useState, useCallback, useEffect } from "react";
 
-/** 1: Chỉ văn bản | 2: Văn bản và hình ảnh | 3: Chỉ hình ảnh */
-export const SIGNATURE_DISPLAY_MODE = {
-  TEXT_ONLY: 1,
-  TEXT_AND_IMAGE: 2,
-  IMAGE_ONLY: 3,
-};
+  /** 1: Chỉ văn bản | 2: Văn bản và hình ảnh | 3: Chỉ hình ảnh */
+  export const SIGNATURE_DISPLAY_MODE = {
+    TEXT_ONLY: 1,
+    TEXT_AND_IMAGE: 2,
+    IMAGE_ONLY: 3,
+  };
 
-export default function SignModal({
-  open,
-  onClose,
-  onSubmit,
-  loading,
-  contractName,
-}) {
-  const [step, setStep] = useState(1); // 1: signature, 2: OTP
-  const [signatureDisplayMode, setSignatureDisplayMode] = useState(1); // 1 văn bản | 2 văn bản và hình ảnh | 3 hình ảnh ( vẽ chữ kí)
-  const [signatureImage, setSignatureImage] = useState(null);
-  const [reason, setReason] = useState("");
-  const [confirmTerms, setConfirmTerms] = useState(false);
-  const [otp, setOtp] = useState("");
-  const [remainingSeconds, setRemainingSeconds] = useState(null); // đếm ngược OTP ký
-  const canvasRef = useRef(null);
-  const isDrawing = useRef(false);
+  function clamp(v, min, max) {
+    return Math.max(min, Math.min(max, v));
+  }
 
-  useEffect(() => {
-    if (open) {
-      setStep(1);
+  function loadImage(src) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = src;
+    });
+  }
+
+  /** Trim viền trắng xung quanh chữ ký, thêm padding nhỏ, trả về dataURL */
+  function trimWhitespace(dataUrl, padding = 12) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const c = document.createElement("canvas");
+        c.width = img.width;
+        c.height = img.height;
+        const ctx = c.getContext("2d");
+        ctx.drawImage(img, 0, 0);
+
+        const { data, width, height } = ctx.getImageData(0, 0, c.width, c.height);
+        let top = height, left = width, right = 0, bottom = 0;
+
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            const idx = (y * width + x) * 4;
+            const r = data[idx], g = data[idx + 1], b = data[idx + 2], a = data[idx + 3];
+            // pixel không phải trắng/trong suốt
+            if (a > 20 && !(r > 240 && g > 240 && b > 240)) {
+              if (x < left) left = x;
+              if (x > right) right = x;
+              if (y < top) top = y;
+              if (y > bottom) bottom = y;
+            }
+          }
+        }
+
+        // Không tìm thấy nét vẽ nào → trả nguyên ảnh gốc
+        if (top > bottom || left > right) {
+          resolve(dataUrl);
+          return;
+        }
+
+        const cropW = right - left + 1 + padding * 2;
+        const cropH = bottom - top + 1 + padding * 2;
+        const out = document.createElement("canvas");
+        out.width = cropW;
+        out.height = cropH;
+        const octx = out.getContext("2d");
+        octx.fillStyle = "#ffffff";
+        octx.fillRect(0, 0, cropW, cropH);
+        octx.drawImage(c, left - padding, top - padding, cropW, cropH, 0, 0, cropW, cropH);
+        resolve(out.toDataURL("image/png"));
+      };
+      img.src = dataUrl;
+    });
+  }
+
+  function DraggableLayer({
+    id,
+    src,
+    pos,
+    setPos,
+    size,
+    boxRef,
+    disabled,
+    label,
+  }) {
+    const dragging = useRef(false);
+    const start = useRef({ x: 0, y: 0, px: 0, py: 0 });
+
+    const onPointerDown = (e) => {
+      if (disabled) return;
+      dragging.current = true;
+      const rect = boxRef.current?.getBoundingClientRect();
+      start.current = {
+        x: e.clientX,
+        y: e.clientY,
+        px: pos.x,
+        py: pos.y,
+        bw: rect?.width ?? 0,
+        bh: rect?.height ?? 0,
+      };
+      e.currentTarget.setPointerCapture?.(e.pointerId);
+    };
+
+    const onPointerMove = (e) => {
+      if (!dragging.current || disabled) return;
+      const rect = boxRef.current?.getBoundingClientRect();
+      const bw = rect?.width ?? start.current.bw;
+      const bh = rect?.height ?? start.current.bh;
+
+      const dx = e.clientX - start.current.x;
+      const dy = e.clientY - start.current.y;
+
+      const nextX = clamp(start.current.px + dx, 0, Math.max(0, bw - size.w));
+      const nextY = clamp(start.current.py + dy, 0, Math.max(0, bh - size.h));
+      setPos({ x: nextX, y: nextY });
+    };
+
+    const onPointerUp = () => {
+      dragging.current = false;
+    };
+
+    if (!src) return null;
+
+    return (
+      <div
+        className={`absolute select-none ${disabled ? "cursor-default" : "cursor-move"}`}
+        style={{ left: pos.x, top: pos.y, width: size.w, height: size.h }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+      >
+        <img
+          src={src}
+          alt={label || id}
+          className="w-full h-full object-contain bg-white/70 rounded-md border border-slate-200"
+          draggable={false}
+        />
+        {!disabled && (
+          <div className="absolute -top-2 -right-2 bg-slate-900 text-white text-[10px] px-1.5 py-0.5 rounded shadow">
+            Kéo để di chuyển
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  function SignaturePreviewModal({
+    open,
+    onClose,
+    onConfirm,
+    loading,
+    mode,
+    drawnSignature,
+    uploadedImage,
+    previewBoxRef,
+    logoPos,
+    setLogoPos,
+    sigPos,
+    setSigPos,
+    logoSize,
+    sigSize,
+    finalSignatureImage,
+    onBuildImage,
+    onReset,
+  }) {
+    useEffect(() => {
+      if (!open) return;
+      onBuildImage?.();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open]);
+
+    if (!open) return null;
+
+    const canDragLogo = mode === 2 || mode === 3;
+    const canDragSig = mode === 1 || mode === 2;
+
+    return (
+      <div className="fixed inset-0 z-[10000] bg-black/55 flex items-center justify-center p-4">
+        <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+          <div className="px-6 py-4 border-b flex items-center justify-between bg-white/95 backdrop-blur">
+            <div>
+              <h3 className="font-semibold text-gray-900 text-base md:text-lg">
+                Xem trước chữ ký
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Bạn có thể kéo để chỉnh vị trí (mặc định: ảnh bên trái, chữ ký bên
+                phải).
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="text-gray-500 hover:text-black disabled:opacity-50"
+              disabled={loading}
+            >
+              ✕
+            </button>
+          </div>
+
+          <div className="px-6 py-5 space-y-4">
+            <div
+              ref={previewBoxRef}
+              className="relative w-full bg-white rounded-xl border border-slate-200 overflow-hidden"
+              style={{ height: 220 }}
+            >
+              <div
+                className="absolute inset-0"
+                style={{
+                  backgroundImage:
+                    "linear-gradient(to right, rgba(148,163,184,0.18) 1px, transparent 1px), linear-gradient(to bottom, rgba(148,163,184,0.18) 1px, transparent 1px)",
+                  backgroundSize: "18px 18px",
+                }}
+              />
+
+              <DraggableLayer
+                id="logo"
+                src={uploadedImage}
+                pos={logoPos}
+                setPos={(p) => {
+                  setLogoPos(p);
+                  onBuildImage?.();
+                }}
+                size={logoSize}
+                boxRef={previewBoxRef}
+                disabled={!canDragLogo}
+                label="Ảnh"
+              />
+
+              <DraggableLayer
+                id="signature"
+                src={drawnSignature}
+                pos={sigPos}
+                setPos={(p) => {
+                  setSigPos(p);
+                  onBuildImage?.();
+                }}
+                size={sigSize}
+                boxRef={previewBoxRef}
+                disabled={!canDragSig}
+                label="Chữ ký"
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 justify-between">
+              <button
+                type="button"
+                onClick={() => {
+                  onReset?.();
+                  onBuildImage?.();
+                }}
+                className="text-xs md:text-sm px-3 py-2 rounded-lg border border-slate-200 hover:bg-slate-50"
+                disabled={loading}
+              >
+                Reset vị trí
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="text-xs md:text-sm px-4 py-2 rounded-lg border border-slate-200 hover:bg-slate-50"
+                  disabled={loading}
+                >
+                  Chỉnh lại
+                </button>
+                <button
+                  type="button"
+                  onClick={onConfirm}
+                  className="text-xs md:text-sm px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
+                  disabled={loading}
+                >
+                  {loading ? "Đang xử lý..." : "Đồng ý"}
+                </button>
+              </div>
+            </div>
+
+            {finalSignatureImage && (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="text-xs font-semibold text-slate-700 mb-2">
+                  Ảnh chữ ký cuối cùng (sẽ gửi lên server)
+                </div>
+                <img
+                  src={finalSignatureImage}
+                  alt="Final signature"
+                  className="max-h-44 w-auto rounded-md border bg-white"
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  export default function SignModal({
+    open,
+    onClose,
+    onSubmit,
+    loading,
+    contractName,
+    initialStep = 1,
+    onResendOtp,
+    stepIndicator,
+  }) {
+    const [step, setStep] = useState(1);
+    const [signatureDisplayMode, setSignatureDisplayMode] = useState(1);
+
+    const [drawnSignature, setDrawnSignature] = useState(null);
+    const [uploadedImage, setUploadedImage] = useState(null);
+    const [finalSignatureImage, setFinalSignatureImage] = useState(null);
+
+    const [reason, setReason] = useState("");
+    const [confirmTerms, setConfirmTerms] = useState(false);
+    const [otp, setOtp] = useState("");
+    const [remainingSeconds, setRemainingSeconds] = useState(null);
+
+    const [previewOpen, setPreviewOpen] = useState(false);
+
+    const [logoPos, setLogoPos] = useState({ x: 10, y: 55 });
+    const [sigPos, setSigPos] = useState({ x: 260, y: 35 });
+
+    const [logoSize] = useState({ w: 400, h: 140 });
+    const [sigSize] = useState({ w: 400, h: 140 });
+
+    const canvasRef = useRef(null);
+    const isDrawing = useRef(false);
+    const previewBoxRef = useRef(null);
+
+    const handleUploadChange = (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onloadend = () => setUploadedImage(reader.result);
+      reader.readAsDataURL(file);
+    };
+
+    useEffect(() => {
+      if (!open) return;
+
+      setStep(initialStep);
       setSignatureDisplayMode(1);
-      setSignatureImage(null);
+      setDrawnSignature(null);
+      setUploadedImage(null);
+      setFinalSignatureImage(null);
+      setPreviewOpen(false);
       setReason("");
       setConfirmTerms(false);
       setOtp("");
-      setRemainingSeconds(null);
-    }
-  }, [open]);
+      setRemainingSeconds(initialStep === 2 ? 5 * 60 : null);
 
-  const clearCanvas = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    ctx.fillStyle = "white";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    setSignatureImage(null);
-  }, []);
+      setLogoPos({ x: 10, y: 55 });
+      setSigPos({ x: 260, y: 35 });
+    }, [open, initialStep]);
 
-  useEffect(() => {
-    if (!open || (signatureDisplayMode !== 2 && signatureDisplayMode !== 3))
-      return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    const clearCanvas = useCallback(() => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "white";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      setDrawnSignature(null);
+    }, []);
 
-    const ctx = canvas.getContext("2d");
-    ctx.fillStyle = "white";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.strokeStyle = "#000";
-    ctx.lineWidth = 2;
-    ctx.lineCap = "round";
+    useEffect(() => {
+      if (!open) return;
+      if (signatureDisplayMode !== 1 && signatureDisplayMode !== 2) return;
 
-    const getPos = (e) => {
-      const rect = canvas.getBoundingClientRect();
-      const scaleX = canvas.width / rect.width;
-      const scaleY = canvas.height / rect.height;
-      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "white";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = "#000";
+      ctx.lineWidth = 3;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+
+      const getPos = (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        return {
+          x: (clientX - rect.left) * scaleX,
+          y: (clientY - rect.top) * scaleY,
+        };
+      };
+
+      const start = (e) => {
+        e.preventDefault();
+        isDrawing.current = true;
+        const pos = getPos(e);
+        ctx.beginPath();
+        ctx.moveTo(pos.x, pos.y);
+      };
+
+      const draw = (e) => {
+        e.preventDefault();
+        if (!isDrawing.current) return;
+        const pos = getPos(e);
+        ctx.lineTo(pos.x, pos.y);
+        ctx.stroke();
+      };
+
+      const end = () => {
+        isDrawing.current = false;
+        setDrawnSignature(canvas.toDataURL("image/png"));
+      };
+
+      canvas.addEventListener("mousedown", start);
+      canvas.addEventListener("mousemove", draw);
+      canvas.addEventListener("mouseup", end);
+      canvas.addEventListener("mouseleave", end);
+      canvas.addEventListener("touchstart", start, { passive: false });
+      canvas.addEventListener("touchmove", draw, { passive: false });
+      canvas.addEventListener("touchend", end);
+
+      return () => {
+        canvas.removeEventListener("mousedown", start);
+        canvas.removeEventListener("mousemove", draw);
+        canvas.removeEventListener("mouseup", end);
+        canvas.removeEventListener("mouseleave", end);
+        canvas.removeEventListener("touchstart", start);
+        canvas.removeEventListener("touchmove", draw);
+        canvas.removeEventListener("touchend", end);
+      };
+    }, [open, signatureDisplayMode]);
+
+    const needDraw = signatureDisplayMode === 1 || signatureDisplayMode === 2;
+    const needUpload = signatureDisplayMode === 2 || signatureDisplayMode === 3;
+
+    const isValidStep1 =
+      confirmTerms &&
+      (!needDraw || !!drawnSignature) &&
+      (!needUpload || !!uploadedImage);
+
+    const isValidStep2 = /^\d{6}$/.test(otp) && (remainingSeconds ?? 1) > 0;
+
+    const optionCardClass = (value) =>
+      [
+        "flex items-center gap-3 rounded-lg border px-3.5 py-2.5 text-sm cursor-pointer transition-colors",
+        signatureDisplayMode === value
+          ? "border-blue-500 bg-blue-50/60"
+          : "border-slate-200 bg-white hover:bg-slate-50",
+      ].join(" ");
+
+    const getPreviewBoxSize = () => {
+      const el = previewBoxRef.current;
+      if (!el) return { w: 680, h: 220 };
+      const r = el.getBoundingClientRect();
       return {
-        x: (clientX - rect.left) * scaleX,
-        y: (clientY - rect.top) * scaleY,
+        w: Math.max(320, Math.round(r.width)),
+        h: Math.max(160, Math.round(r.height)),
       };
     };
 
-    const start = (e) => {
-      e.preventDefault();
-      isDrawing.current = true;
-      const pos = getPos(e);
-      ctx.beginPath();
-      ctx.moveTo(pos.x, pos.y);
-    };
+    const resetPreviewLayout = useCallback(() => {
+      const { w: boxW, h: boxH } = getPreviewBoxSize();
 
-    const draw = (e) => {
-      e.preventDefault();
-      if (!isDrawing.current) return;
-      const pos = getPos(e);
-      ctx.lineTo(pos.x, pos.y);
-      ctx.stroke();
-    };
+      if (signatureDisplayMode === 2) {
+        setLogoPos({ x: 10, y: Math.round((boxH - logoSize.h) / 2) });
+        setSigPos({
+          x: Math.max(10, boxW - sigSize.w - 10),
+          y: Math.round((boxH - sigSize.h) / 2),
+        });
+      } else if (signatureDisplayMode === 1) {
+        setSigPos({
+          x: Math.round((boxW - sigSize.w) / 2),
+          y: Math.round((boxH - sigSize.h) / 2),
+        });
+      } else {
+        setLogoPos({
+          x: Math.round((boxW - logoSize.w) / 2),
+          y: Math.round((boxH - logoSize.h) / 2),
+        });
+      }
+    }, [logoSize.h, logoSize.w, sigSize.h, sigSize.w, signatureDisplayMode]);
 
-    const end = () => {
-      isDrawing.current = false;
-      const data = canvas.toDataURL("image/png");
-      setSignatureImage(data);
-    };
+    const buildFinalSignatureImage = useCallback(async () => {
+      const { w: boxW, h: boxH } = getPreviewBoxSize();
 
-    canvas.addEventListener("mousedown", start);
-    canvas.addEventListener("mousemove", draw);
-    canvas.addEventListener("mouseup", end);
-    canvas.addEventListener("mouseleave", end);
-    canvas.addEventListener("touchstart", start, { passive: false });
-    canvas.addEventListener("touchmove", draw, { passive: false });
-    canvas.addEventListener("touchend", end);
+      const canvas = document.createElement("canvas");
+      canvas.width = boxW;
+      canvas.height = boxH;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, boxW, boxH);
 
-    return () => {
-      canvas.removeEventListener("mousedown", start);
-      canvas.removeEventListener("mousemove", draw);
-      canvas.removeEventListener("mouseup", end);
-      canvas.removeEventListener("mouseleave", end);
-      canvas.removeEventListener("touchstart", start);
-      canvas.removeEventListener("touchmove", draw);
-      canvas.removeEventListener("touchend", end);
-    };
-  }, [open, signatureDisplayMode]);
+      const trimmedSig = drawnSignature
+        ? await trimWhitespace(drawnSignature)
+        : null;
 
-  const needImage = signatureDisplayMode === 2 || signatureDisplayMode === 3;
-  const isValidStep1 = confirmTerms && (needImage ? !!signatureImage : true);
-  const isValidStep2 = /^\d{6}$/.test(otp) && (remainingSeconds ?? 1) > 0;
+      if (signatureDisplayMode === 1) {
+        const sigImg = await loadImage(trimmedSig);
+        ctx.drawImage(sigImg, sigPos.x, sigPos.y, sigSize.w, sigSize.h);
+      } else if (signatureDisplayMode === 3) {
+        const logoImg = await loadImage(uploadedImage);
+        ctx.drawImage(logoImg, logoPos.x, logoPos.y, logoSize.w, logoSize.h);
+      } else {
+        const [logoImg, sigImg] = await Promise.all([
+          loadImage(uploadedImage),
+          loadImage(trimmedSig),
+        ]);
+        ctx.drawImage(logoImg, logoPos.x, logoPos.y, logoSize.w, logoSize.h);
+        ctx.drawImage(sigImg, sigPos.x, sigPos.y, sigSize.w, sigSize.h);
+      }
 
-  const handleStep1Submit = () => {
-    if (!isValidStep1) return;
-    const payload = {
+      const out = canvas.toDataURL("image/png");
+      setFinalSignatureImage(out);
+      return out;
+    }, [
+      drawnSignature,
+      uploadedImage,
+      logoPos.x,
+      logoPos.y,
+      logoSize.h,
+      logoSize.w,
+      sigPos.x,
+      sigPos.y,
+      sigSize.h,
+      sigSize.w,
       signatureDisplayMode,
-      signatureImage: needImage ? signatureImage : null,
-      reason: reason.trim() || null,
-      confirmTermsConditions: confirmTerms,
+    ]);
+
+    const openPreview = () => {
+      if (!isValidStep1) return;
+      resetPreviewLayout();
+      setPreviewOpen(true);
+
+      setTimeout(() => {
+        buildFinalSignatureImage().catch(() => {});
+      }, 0);
     };
-    onSubmit(payload, null, (processId) => {
-      setStep(2);
-      // Bắt đầu đếm ngược 5 phút cho OTP ký
-      setRemainingSeconds(5 * 60);
-    });
-  };
 
-  const handleStep2Submit = () => {
-    if (!isValidStep2) return;
-    const payload = { otp };
-    onSubmit(null, payload, () => {});
-  };
+    const handlePreviewConfirm = async () => {
+      if (!isValidStep1) return;
+      const img = await buildFinalSignatureImage();
 
-  // đếm ngược OTP (chỉ ở bước 2)
-  useEffect(() => {
-    if (!open || step !== 2 || remainingSeconds == null) return;
-    if (remainingSeconds <= 0) return;
+      const payload = {
+        signatureDisplayMode,
+        signatureImage: img,
+        reason: reason.trim() || null,
+        confirmTermsConditions: confirmTerms,
+      };
 
-    const id = setInterval(() => {
-      setRemainingSeconds((prev) => {
-        if (prev == null || prev <= 1) {
-          clearInterval(id);
-          return 0;
-        }
-        return prev - 1;
+      onSubmit(payload, null, () => {
+        setPreviewOpen(false);
+        setStep(2);
+        setRemainingSeconds(5 * 60);
       });
-    }, 1000);
+    };
 
-    return () => clearInterval(id);
-  }, [open, step, remainingSeconds]);
+    const handleStep2Submit = () => {
+      if (!isValidStep2) return;
+      onSubmit(null, { otp }, () => {});
+    };
 
-  if (!open) return null;
+    useEffect(() => {
+      if (!open || step !== 2 || remainingSeconds == null) return;
+      if (remainingSeconds <= 0) return;
 
-  return (
-    <div className="fixed inset-0 z-[9999] bg-black/40 flex items-center justify-center p-4">
-      <div className="w-full max-w-lg bg-white rounded-xl shadow-xl border max-h-[90vh] overflow-y-auto">
-        <div className="px-5 py-4 border-b flex items-center justify-between sticky top-0 bg-white">
-          <h3 className="font-semibold text-gray-800">
-            {step === 1 ? "Ký hợp đồng" : "Nhập mã OTP"}
-          </h3>
-          <button
-            onClick={onClose}
-            className="text-gray-500 hover:text-black disabled:opacity-50"
-            disabled={loading}
-          >
-            ✕
-          </button>
-        </div>
+      const id = setInterval(() => {
+        setRemainingSeconds((prev) => {
+          if (prev == null || prev <= 1) {
+            clearInterval(id);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
 
-        <div className="px-5 py-5">
-          {step === 1 ? (
-            <>
-              <p className="text-sm text-gray-600 mb-4">
-                Vui lòng tạo chữ ký và xác nhận điều khoản để tiếp tục ký hợp
-                đồng {contractName ? `"${contractName}"` : ""}.
-              </p>
+      return () => clearInterval(id);
+    }, [open, step, remainingSeconds]);
 
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Chế độ hiển thị chữ ký
-                  </label>
-                  <div className="flex flex-col gap-2">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="signatureDisplayMode"
-                        value={1}
-                        checked={signatureDisplayMode === 1}
-                        onChange={() => setSignatureDisplayMode(1)}
-                      />
-                      <span>1. Chỉ văn bản</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="signatureDisplayMode"
-                        value={2}
-                        checked={signatureDisplayMode === 2}
-                        onChange={() => setSignatureDisplayMode(2)}
-                      />
-                      <span>2. Văn bản và hình ảnh</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="signatureDisplayMode"
-                        value={3}
-                        checked={signatureDisplayMode === 3}
-                        onChange={() => setSignatureDisplayMode(3)}
-                      />
-                      <span>3. Chỉ hình ảnh</span>
-                    </label>
-                  </div>
-                </div>
+    useEffect(() => {
+      if (!open) return;
 
-                {signatureDisplayMode === 2 || signatureDisplayMode === 3 ? (
+      setFinalSignatureImage(null);
+      setPreviewOpen(false);
+
+      if (signatureDisplayMode === 1) setUploadedImage(null);
+      if (signatureDisplayMode === 3) setDrawnSignature(null);
+    }, [signatureDisplayMode, open]);
+
+    if (!open) return null;
+
+    return (
+      <div className="fixed inset-0 z-[9999] bg-black/45 flex items-center justify-center p-4">
+        <div className="w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto">
+          {stepIndicator && (
+            <div className="px-8 pt-6 pb-5 border-b border-gray-100 sticky top-0 bg-white z-10">
+              {stepIndicator}
+            </div>
+          )}
+          <div className="px-6 py-4 border-b flex items-center justify-between sticky top-0 bg-white/95 backdrop-blur">
+            <h3 className="font-semibold text-gray-900 text-base md:text-lg">
+              {step === 1 ? "Ký hợp đồng" : "Nhập mã OTP"}
+            </h3>
+            <button
+              onClick={onClose}
+              className="text-gray-500 hover:text-black disabled:opacity-50"
+              disabled={loading}
+            >
+              ✕
+            </button>
+          </div>
+
+          <div className="px-6 py-5">
+            {step === 1 ? (
+              <>
+                <p className="text-sm text-gray-600 mb-4">
+                  Vui lòng tạo chữ ký và xác nhận điều khoản để tiếp tục ký hợp
+                  đồng{" "}
+                  {contractName ? (
+                    <span className="font-semibold text-gray-800">
+                      “{contractName}”
+                    </span>
+                  ) : (
+                    ""
+                  )}
+                  .
+                </p>
+
+                <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {signatureDisplayMode === 2
-                        ? "Vẽ chữ ký (hình ảnh)"
-                        : "Vẽ chữ ký"}
+                    <label className="block text-sm font-medium text-gray-800 mb-2">
+                      Chế độ hiển thị chữ ký
                     </label>
-                    <div className="border rounded-lg overflow-hidden bg-white">
-                      <canvas
-                        ref={canvasRef}
-                        width={400}
-                        height={150}
-                        className="w-full touch-none"
-                        style={{
-                          width: "100%",
-                          height: "150px",
-                          cursor: "crosshair",
-                        }}
-                      />
-                      <button
-                        type="button"
-                        onClick={clearCanvas}
-                        className="text-sm text-gray-500 hover:text-red-600 py-1 px-2"
-                      >
-                        Xóa và vẽ lại
-                      </button>
+                    <div className="flex flex-col gap-2.5">
+                      <label className={optionCardClass(1)}>
+                        <input
+                          type="radio"
+                          name="signatureDisplayMode"
+                          value={1}
+                          checked={signatureDisplayMode === 1}
+                          onChange={() => setSignatureDisplayMode(1)}
+                          className="h-4 w-4 text-blue-600 border-slate-300"
+                        />
+                        <span className="text-gray-800">1. Chỉ chữ ký (vẽ)</span>
+                      </label>
+
+                      <label className={optionCardClass(2)}>
+                        <input
+                          type="radio"
+                          name="signatureDisplayMode"
+                          value={2}
+                          checked={signatureDisplayMode === 2}
+                          onChange={() => setSignatureDisplayMode(2)}
+                          className="h-4 w-4 text-blue-600 border-slate-300"
+                        />
+                        <span className="text-gray-800">
+                          2. Chữ ký (vẽ) và hình ảnh
+                        </span>
+                      </label>
+
+                      <label className={optionCardClass(3)}>
+                        <input
+                          type="radio"
+                          name="signatureDisplayMode"
+                          value={3}
+                          checked={signatureDisplayMode === 3}
+                          onChange={() => setSignatureDisplayMode(3)}
+                          className="h-4 w-4 text-blue-600 border-slate-300"
+                        />
+                        <span className="text-gray-800">3. Chỉ hình ảnh</span>
+                      </label>
                     </div>
                   </div>
-                ) : null}
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Lý do ký (tùy chọn)
-                  </label>
-                  <input
-                    type="text"
-                    value={reason}
-                    onChange={(e) => setReason(e.target.value)}
-                    placeholder="Ví dụ: Đồng ý với nội dung hợp đồng"
-                    className="w-full border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                <label className="flex items-start gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={confirmTerms}
-                    onChange={(e) => setConfirmTerms(e.target.checked)}
-                    className="mt-1"
-                  />
-                  <span className="text-sm text-gray-700">
-                    Tôi xác nhận đã đọc và đồng ý với các điều khoản của hợp
-                    đồng
-                  </span>
-                </label>
-              </div>
-
-              <div className="mt-6 flex gap-2 justify-end">
-                <button
-                  onClick={onClose}
-                  disabled={loading}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-60"
-                >
-                  Hủy
-                </button>
-                <button
-                  onClick={handleStep1Submit}
-                  disabled={!isValidStep1 || loading}
-                  className="px-4 py-2 rounded-lg text-sm bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
-                >
-                  {loading ? "Đang xử lý..." : "Gửi và nhận OTP"}
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <p className="text-sm text-gray-600 mb-3">
-                Mã OTP đã được gửi đến số điện thoại/email của bạn. Vui lòng
-                nhập mã 6 chữ số để hoàn tất ký hợp đồng.
-              </p>
-
-              {typeof remainingSeconds === "number" && (
-                <div className="mb-3 text-sm text-gray-700 flex items-baseline gap-2">
-                  <span className="font-semibold">
-                    {String(Math.floor(remainingSeconds / 60)).padStart(2, "0")}{" "}
-                    Phút{" "}
-                    {String(remainingSeconds % 60).padStart(2, "0")} Giây
-                  </span>
-                  {remainingSeconds <= 0 && (
-                    <span className="text-red-500">
-                      OTP đã hết hạn, vui lòng gửi lại yêu cầu ký.
-                    </span>
+                  {(signatureDisplayMode === 1 || signatureDisplayMode === 2) && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-800 mb-1">
+                        Chữ ký (vẽ)
+                      </label>
+                      <div className="border border-slate-200 rounded-lg overflow-hidden bg-white">
+                        <canvas
+                          ref={canvasRef}
+                          width={800}
+                          height={300}
+                          className="w-full touch-none"
+                          style={{
+                            width: "100%",
+                            height: "300px",
+                            cursor: "crosshair",
+                          }}
+                        />
+                        <div className="flex items-center justify-between px-3 py-1.5">
+                          <button
+                            type="button"
+                            onClick={clearCanvas}
+                            className="text-xs md:text-sm text-gray-500 hover:text-red-600"
+                          >
+                            Xóa và vẽ lại
+                          </button>
+                          {drawnSignature ? (
+                            <span className="text-xs text-emerald-600 font-medium">
+                              Đã có chữ ký
+                            </span>
+                          ) : (
+                            <span className="text-xs text-slate-500">
+                              Chưa vẽ chữ ký
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                   )}
+
+                  {(signatureDisplayMode === 2 || signatureDisplayMode === 3) && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-800 mb-1">
+                        {signatureDisplayMode === 2
+                          ? "Ảnh (logo / hình ảnh)"
+                          : "Ảnh (chữ ký dạng hình)"}
+                      </label>
+                      <p className="text-xs text-gray-600 mb-2">
+                        {signatureDisplayMode === 2
+                          ? "Mặc định ở bước xem trước: ảnh bên trái, chữ ký bên phải."
+                          : "Ảnh này sẽ được dùng làm chữ ký."}
+                      </p>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleUploadChange}
+                        className="block w-full text-xs text-gray-700 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border file:border-gray-300 file:text-xs file:bg-white file:text-gray-700 hover:file:bg-gray-50"
+                      />
+                      {uploadedImage && (
+                        <div className="mt-2">
+                          <p className="text-xs text-gray-500 mb-1">
+                            Xem trước ảnh đã chọn:
+                          </p>
+                          <img
+                            src={uploadedImage}
+                            alt="Ảnh đã chọn"
+                            className="max-h-32 border rounded-md"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <label className="flex items-start gap-2 cursor-pointer mt-1">
+                    <input
+                      type="checkbox"
+                      checked={confirmTerms}
+                      onChange={(e) => setConfirmTerms(e.target.checked)}
+                      className="mt-1"
+                    />
+                    <span className="text-sm text-gray-700 leading-relaxed">
+                      Tôi xác nhận đã đọc và đồng ý với các{" "}
+                      <span className="text-blue-600 hover:underline cursor-pointer">
+                        điều khoản, điều kiện
+                      </span>{" "}
+                      của hợp đồng và nền tảng ký số.
+                    </span>
+                  </label>
                 </div>
-              )}
 
-              <input
-                value={otp}
-                onChange={(e) => {
-                  const v = e.target.value.replace(/\D/g, "").slice(0, 6);
-                  setOtp(v);
-                }}
-                inputMode="numeric"
-                autoFocus
-                placeholder="______"
-                className="w-full text-center tracking-[0.6em] text-2xl font-semibold border rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 mb-4"
-              />
+                <div className="mt-6 flex gap-2 justify-end">
+                  <button
+                    onClick={onClose}
+                    disabled={loading}
+                    className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                  >
+                    Hủy bỏ
+                  </button>
+                  <button
+                    onClick={openPreview}
+                    disabled={!isValidStep1 || loading}
+                    className="px-4 py-2 rounded-lg text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
+                  >
+                    {loading ? "Đang xử lý..." : "Xem trước chữ ký"}
+                  </button>
+                </div>
 
-              <div className="flex gap-2 justify-end">
-                <button
-                  onClick={() => setStep(1)}
-                  disabled={loading}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-60"
-                >
-                  Quay lại
-                </button>
-                <button
-                  onClick={handleStep2Submit}
-                  disabled={!isValidStep2 || loading}
-                  className="px-4 py-2 rounded-lg text-sm bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
-                >
-                  {loading ? "Đang ký..." : "Hoàn tất ký"}
-                </button>
-              </div>
-            </>
-          )}
+                <SignaturePreviewModal
+                  open={previewOpen}
+                  onClose={() => setPreviewOpen(false)}
+                  onConfirm={handlePreviewConfirm}
+                  loading={loading}
+                  mode={signatureDisplayMode}
+                  drawnSignature={drawnSignature}
+                  uploadedImage={uploadedImage}
+                  previewBoxRef={previewBoxRef}
+                  logoPos={logoPos}
+                  setLogoPos={setLogoPos}
+                  sigPos={sigPos}
+                  setSigPos={setSigPos}
+                  logoSize={logoSize}
+                  sigSize={sigSize}
+                  finalSignatureImage={finalSignatureImage}
+                  onBuildImage={() => buildFinalSignatureImage().catch(() => {})}
+                  onReset={resetPreviewLayout}
+                />
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-gray-600 mb-3">
+                  Mã OTP đã được gửi đến số điện thoại/email của bạn. Vui lòng
+                  nhập mã 6 chữ số để hoàn tất ký hợp đồng.
+                </p>
+
+                {typeof remainingSeconds === "number" && (
+                  <div className="mb-3 text-sm text-gray-700 flex items-baseline gap-2 flex-wrap">
+                    {remainingSeconds > 0 ? (
+                      <span className="font-semibold">
+                        {String(Math.floor(remainingSeconds / 60)).padStart(
+                          2,
+                          "0",
+                        )}{" "}
+                        Phút {String(remainingSeconds % 60).padStart(2, "0")} Giây
+                      </span>
+                    ) : (
+                      <>
+                        <span className="text-red-500 font-medium">
+                          OTP đã hết hạn.
+                        </span>
+                        {onResendOtp && (
+                          <button
+                            type="button"
+                            disabled={loading}
+                            onClick={() =>
+                              onResendOtp(() => setRemainingSeconds(5 * 60))
+                            }
+                            className="ml-1 px-3 py-1 text-xs font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
+                          >
+                            {loading ? "Đang gửi..." : "Gửi lại OTP"}
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+
+                <input
+                  value={otp}
+                  onChange={(e) => {
+                    const v = e.target.value.replace(/\D/g, "").slice(0, 6);
+                    setOtp(v);
+                  }}
+                  inputMode="numeric"
+                  autoFocus
+                  placeholder="______"
+                  className="w-full text-center tracking-[0.6em] text-2xl font-semibold border rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 mb-4"
+                />
+
+                <div className="flex gap-2 justify-end">
+                  <button
+                    onClick={() => setStep(1)}
+                    disabled={loading}
+                    className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-60"
+                  >
+                    Quay lại
+                  </button>
+                  <button
+                    onClick={handleStep2Submit}
+                    disabled={!isValidStep2 || loading}
+                    className="px-4 py-2 rounded-lg text-sm bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
+                  >
+                    {loading ? "Đang ký..." : "Hoàn tất ký"}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
-    </div>
-  );
-}
+    );
+  }

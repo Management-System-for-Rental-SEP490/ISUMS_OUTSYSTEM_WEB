@@ -1,202 +1,141 @@
-import { useState, useRef } from "react";
-import { useNavigate } from "react-router-dom";
-import { useMagicLinkParam } from "../hooks/useMagicLinkParam";
-import { useEContract } from "../hooks/useEContract";
-import { signEContract, readyEcontract } from "../services/contract.api";
+import { useState } from "react";
 import { ClipLoader } from "react-spinners";
 
-import { toast } from "react-toastify";
-import ConfirmModal from "../../../components/ConfirmModal";
-import OtpModal from "../../../components/OtpModal";
-import SignModal from "../../../components/SignModal";
+import { useMagicLinkParam } from "../hooks/useMagicLinkParam";
+import { useEContract } from "../hooks/useEContract";
+import { useA4Scale } from "../hooks/useA4Scale";
+import { useSignaturePlacement } from "../hooks/useSignaturePlacement";
+import { useContractSign } from "../hooks/useContractSign";
 
-//  Lấy dữ liệu cho api Ký hợp đồng từ api xác nhận OTPF
-const getSignContextFromResponse = (res) => {
-  const data = res?.data?.data ?? res?.data ?? res;
-  return {
-    accessToken: data?.accessToken,
-    processId: data?.processId ?? data?.process_id,
-    signingPage: data?.pageSign,
-    signingPosition: data?.position ?? data?.signing_position ?? "0,0",
-  };
-};
+import ConfirmModal from "../../../components/ConfirmModal";
+import SignModal from "../../../components/SignModal";
+import StepIndicator from "../../../components/StepIndicator";
+import ContractHeader from "../components/ContractHeader";
+import ContractViewer from "../components/ContractViewer";
 
 export function ContractViewPage() {
   const { processCode } = useMagicLinkParam();
-  const navigate = useNavigate();
-  const { html, contractInfo, loading, error } = useEContract(processCode);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [isReadyToSign, setIsReadyToSign] = useState(false);
-  const [signOpen, setSignOpen] = useState(false);
-  const [signLoading, setSignLoading] = useState(false);
-  const signPayloadRef = useRef(null);
-  const signContextRef = useRef(null);
+  const { pdfUrl, contractInfo, signingCtx, loading, error } = useEContract(processCode);
+  const { a4Scale, scrollAreaRef } = useA4Scale();
 
-  /**
-   * Build payload theo tài liệu VNPT eContract.
-   * processId, signingPage, signingPosition lấy từ response API processCode (nhập OTP xác nhận).
-   */
-  const buildSignPayload = (signaturePayload, otp) => {
-    const ctx = signContextRef.current;
-    if (!ctx?.processId) {
-      throw new Error("Thiếu processId từ bước xác nhận OTP.");
-    }
-    return {
-      token: ctx.accessToken,
-      processId: ctx.processId,
-      reason: signaturePayload?.reason ?? "",
-      reject: false,
-      otp: otp ?? null,
-      signatureDisplayMode: Number(signaturePayload?.signatureDisplayMode) || 1,
-      signatureImage: signaturePayload?.signatureImage ?? null,
-      signingPage: ctx.signingPage ?? 0,
-      signatureText: `{{Name}}
-{{SubjectDN}}
-{{Reason}}
-{{SignTime}}`,
-      signingPosition: ctx.signingPosition ?? "0,0",
-      fontSize: signaturePayload?.fontSize ?? 12,
-      showReason: true,
-      confirmTermsConditions: signaturePayload?.confirmTermsConditions ?? true,
-    };
+  const [placementMode, setPlacementMode] = useState(false);
+  const [numPdfPages, setNumPdfPages] = useState(null);
+
+  const placement = useSignaturePlacement({
+    a4Scale,
+    scrollAreaRef,
+    placementMode,
+  });
+
+  const handlePdfLoad = (n) => {
+    setNumPdfPages(n);
+    placement.setTotalPages(n);
   };
 
-  const handleSignSubmit = async (
-    signaturePayload,
-    otpPayload,
-    onStep1Success,
-  ) => {
-    if (!processCode) {
-      toast.error("Thiếu token từ đường dẫn.");
-      return;
-    }
-    if (!signContextRef.current?.processId) {
-      toast.error("Vui lòng hoàn tất bước xác nhận OTP trước khi ký.");
-      return;
-    }
+  const signing = useContractSign({
+    processCode,
+    signingCtx,
+    currentPlacement: placement.currentPlacement,
+    initDragPosition: placement.initDragPosition,
+    placementMode,
+    setPlacementMode,
+  });
 
-    setSignLoading(true);
-    try {
-      if (signaturePayload) {
-        const payload = buildSignPayload(signaturePayload, null);
-        await signEContract(payload);
-        signPayloadRef.current = signaturePayload;
-        onStep1Success?.();
-        toast.info("Mã OTP đã được gửi. Vui lòng nhập để hoàn tất ký.");
-      } else if (otpPayload?.otp) {
-        const payload = buildSignPayload(
-          signPayloadRef.current,
-          otpPayload.otp,
-        );
-        await signEContract(payload);
-        toast.success("Ký hợp đồng thành công!");
-        setSignOpen(false);
-        signPayloadRef.current = null;
-      }
-    } catch (err) {
-      const msg =
-        err?.response?.data?.message || err?.message || "Lỗi ký hợp đồng.";
-      toast.error(msg);
-    } finally {
-      setSignLoading(false);
-    }
-  };
-
-  const handleConfirm = () => {
-    if (processCode === undefined) {
-      toast.error("Thiếu id hoặc token từ đường dẫn.");
-      return;
-    }
-    // Nếu đã có context ký thì mở luôn luồng ký,
-    // còn chưa thì mở modal xác nhận trước khi ký.
-    if (isReadyToSign && signContextRef.current?.processId) {
-      setSignOpen(true);
-    } else {
-      setConfirmOpen(true);
-    }
-  };
-
-  const handleConfirmAgree = async () => {
-    try {
-      const res = await readyEcontract(processCode);
-      signContextRef.current = getSignContextFromResponse(res);
-      console.log(signContextRef.current);
-      toast.success("Xác nhận thành công, chuẩn bị ký hợp đồng.");
-      setIsReadyToSign(true);
-      setConfirmOpen(false);
-      // Sau khi xác nhận xong thì mở luôn modal ký (bước 1 của SignModal)
-      setSignOpen(true);
-    } catch (err) {
-      const msg =
-        err?.response?.data?.message ||
-        err?.message ||
-        "Không thể gửi yêu cầu xác nhận.";
-      toast.error(msg);
-    }
-  };
-
-  if (loading)
+  if (loading) {
     return (
       <div className="flex justify-center items-center h-screen">
-        <ClipLoader size={50} color={"#123abc"} loading={true} />
+        <ClipLoader size={50} color="#123abc" loading />
       </div>
     );
-  if (error)
-    return <div className="p-10 text-center text-red-500">{error}</div>;
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-100">
+        <div className="px-6 py-4 rounded-lg bg-white shadow text-center text-red-500 text-sm md:text-base">
+          {error}
+        </div>
+      </div>
+    );
+  }
+
+  const stepIndicatorEl = signing.currentStep > 0 ? (
+    <StepIndicator
+      currentStep={signing.currentStep}
+      onGoToStep={signing.goToStep}
+    />
+  ) : null;
 
   return (
-    <div className="min-h-screen bg-gray-200 flex flex-col">
+    <div className="min-h-screen bg-slate-100 flex flex-col">
       <ConfirmModal
-        open={confirmOpen}
-        onClose={() => setConfirmOpen(false)}
-        onConfirm={handleConfirmAgree}
+        open={signing.confirmOpen}
+        onClose={() => signing.setConfirmOpen(false)}
+        onConfirm={signing.handleConfirmAgree}
+        onReject={signing.handleReject}
+        stepIndicator={stepIndicatorEl}
       />
-
       <SignModal
-        open={signOpen}
-        loading={signLoading}
+        open={signing.signOpen}
+        loading={signing.signLoading}
+        initialStep={signing.initialStep}
         onClose={() => {
-          if (signLoading) return;
-          setSignOpen(false);
-          signContextRef.current = null;
+          if (signing.signLoading) return;
+          signing.setSignOpen(false);
         }}
-        onSubmit={handleSignSubmit}
-        contractName={contractInfo?.name}
+        onSubmit={signing.handleSignSubmit}
+        contractName={contractInfo?.documentNo}
+        onResendOtp={signing.handleResendOtp}
+        stepIndicator={stepIndicatorEl}
       />
 
-      <div className="flex flex-col">
-        <header className="sticky top-0 z-10 w-full bg-white border-b border-gray-300 px-6 py-3 flex justify-between items-center shadow-sm">
-          <button
-            onClick={() => navigate(-1)}
-            className="text-gray-600 hover:text-black flex items-center gap-2"
-          >
-            <span>{contractInfo?.name}</span>
-          </button>
+      <ContractHeader
+        contractName={contractInfo?.documentNo}
+        downloadUrl={signing.downloadUrl}
+        placementMode={placementMode}
+        isReadyToSign={signing.isReadyToSign}
+        signLoading={signing.signLoading}
+        processCode={processCode}
+        currentPlacement={placement.currentPlacement}
+        onConfirm={signing.handleConfirm}
+      />
 
-          <h1 className="font-semibold text-gray-800 hidden md:block">
-            Xem trước hợp đồng
-          </h1>
-
-          <button
-            onClick={handleConfirm}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-md font-medium transition-colors shadow-md"
-          >
-            {isReadyToSign ? "Ký hợp đồng" : "Xác nhận"}
-          </button>
-        </header>
-      </div>
-
-      <main className="flex-grow flex justify-center p-4 md:p-8">
-        <div className="w-full max-w-4xl">
-          <div
-            className="bg-white p-8 md:p-12 shadow-2xl rounded-sm min-h-[1000px] contract-content"
-            dangerouslySetInnerHTML={{ __html: html }}
+      {/* Step indicator floating bar — chỉ hiện khi placement mode */}
+      {placementMode && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-white rounded-2xl shadow-lg border border-slate-200 px-6 py-4 w-120 max-w-[calc(100vw-2rem)]">
+          <StepIndicator
+            currentStep={signing.currentStep}
+            onGoToStep={signing.goToStep}
           />
-
-          <div className="text-center py-6 text-gray-500 text-sm">
-            --- Hết nội dung hợp đồng ---
-          </div>
         </div>
+      )}
+
+      <main
+        className="grow flex overflow-hidden"
+        style={{ height: "calc(100vh - 57px)" }}
+      >
+        <ContractViewer
+          scrollAreaRef={scrollAreaRef}
+          contractContentRef={placement.contractContentRef}
+          pdfUrl={pdfUrl}
+          totalPages={placement.totalPages}
+          numPdfPages={numPdfPages}
+          onPdfLoad={handlePdfLoad}
+          a4Scale={a4Scale}
+          placementMode={placementMode}
+          signLoading={signing.signLoading}
+          signatureBoxPosition={placement.signatureBoxPosition}
+          setSignatureBoxPosition={placement.setSignatureBoxPosition}
+          boxPxSize={placement.boxPxSize}
+          currentPlacement={placement.currentPlacement}
+          signatureImage={signing.signPayloadRef.current?.signatureImage}
+          signerName={
+            contractInfo?.signerName ??
+            contractInfo?.fullName ??
+            contractInfo?.participantName ??
+            ""
+          }
+        />
       </main>
     </div>
   );
