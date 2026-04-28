@@ -11,22 +11,23 @@ function CccdLoadingOverlay({ done, onDone }) {
   const [progress, setProgress] = useState(0);
   const progressRef = useRef(0);
 
-  // Phase 1: tăng dần đến 95
+  // Phase 1: tăng dần đến 95, sau đó creep chậm lên 99 khi chờ API
   useEffect(() => {
+    if (done) return;
     const interval = setInterval(() => {
       setProgress((p) => {
-        if (p >= 95) {
+        if (p >= 99) {
           clearInterval(interval);
-          return 95;
+          return 99;
         }
-        const increment = p < 40 ? 2 : p < 75 ? 1 : 0.4;
-        const next = Math.min(p + increment, 95);
+        const increment = p < 30 ? 1.5 : p < 85 ? 1 : 0.4;
+        const next = Math.min(p + increment, 99);
         progressRef.current = next;
         return next;
       });
     }, 160);
     return () => clearInterval(interval);
-  }, []);
+  }, [done]);
 
   // Phase 2: khi API xong,      sprint nhanh từ vị trí hiện tại lên 100 rồi gọi onDone
   useEffect(() => {
