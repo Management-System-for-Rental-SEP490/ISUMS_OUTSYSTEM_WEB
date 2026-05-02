@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
+import i18n from "../../../i18n";
 import { readyEcontract } from "../services/contract.api";
 import { getSignContextFromResponse } from "../utils/signatureUtils";
+
+// Resolve through the singleton i18n instance so the error string picks
+// up the tenant's contract language at load time.
+const t = (...args) => i18n.t(...args);
 
 export function useEContract(processCode) {
   const [pdfUrl, setPdfUrl] = useState(null);
@@ -11,7 +16,7 @@ export function useEContract(processCode) {
 
   useEffect(() => {
     if (processCode === undefined) {
-      setError("Thiếu mã xử lý hợp đồng, Vui lòng check lại đường link trong email.");
+      setError(t("errors.missingProcessCode"));
       setLoading(false);
       return;
     }
@@ -28,9 +33,11 @@ export function useEContract(processCode) {
         setSigningCtx(getSignContextFromResponse(res));
       } catch (err) {
         if (!cancelled) {
-          setError(err?.response?.data?.message === "Unexpected error"
-  ? "Lỗi máy chủ, vui lòng thử lại sau."
-  : err?.response?.data?.message || err?.message || "Lỗi tải hợp đồng.");
+          setError(
+            err?.response?.data?.message === "Unexpected error"
+              ? t("errors.server")
+              : err?.response?.data?.message || err?.message || t("errors.loadContract"),
+          );
         }
       } finally {
         if (!cancelled) setLoading(false);

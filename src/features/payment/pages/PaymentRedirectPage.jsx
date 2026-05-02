@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { createVnpayPaymentUrl } from "../../contract/services/contract.api";
 
 export default function PaymentRedirectPage() {
+  const { t } = useTranslation("common");
   const [searchParams] = useSearchParams();
   const [error, setError] = useState(null);
 
@@ -11,7 +13,7 @@ export default function PaymentRedirectPage() {
 
   useEffect(() => {
     if (!invoiceId) {
-      setError("Đường dẫn không hợp lệ. Thiếu thông tin invoiceId.");
+      setError(t("payment.invalidInvoiceId"));
       return;
     }
 
@@ -19,7 +21,7 @@ export default function PaymentRedirectPage() {
       .then((res) => {
         const paymentUrl = res?.data?.data;
         if (!paymentUrl) {
-          setError("Không lấy được link thanh toán. Vui lòng thử lại.");
+          setError(t("payment.cannotGetLink"));
           return;
         }
         window.location.href = paymentUrl;
@@ -27,10 +29,10 @@ export default function PaymentRedirectPage() {
       .catch((err) => {
         const msg =
           err?.response?.data?.message ||
-          "Có lỗi xảy ra khi tạo link thanh toán.";
+          t("payment.createLinkError");
         setError(msg);
       });
-  }, [invoiceId, token]);
+  }, [invoiceId, token, t]);
 
   if (error) {
     return (
@@ -52,7 +54,7 @@ export default function PaymentRedirectPage() {
             </svg>
           </div>
           <h2 className="text-lg font-semibold text-gray-800 mb-2">
-            Lỗi thanh toán
+            {t("payment.errorTitle")}
           </h2>
           <p className="text-sm text-gray-500">{error}</p>
         </div>
@@ -85,9 +87,9 @@ export default function PaymentRedirectPage() {
           </svg>
         </div>
         <h2 className="text-lg font-semibold text-gray-800 mb-1">
-          Đang chuyển đến trang thanh toán...
+          {t("payment.redirectingTitle")}
         </h2>
-        <p className="text-sm text-gray-400">Vui lòng không đóng trang này.</p>
+        <p className="text-sm text-gray-400">{t("payment.dontClose")}</p>
       </div>
     </div>
   );

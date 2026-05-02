@@ -1,4 +1,5 @@
   import React, { useRef, useState, useCallback, useEffect } from "react";
+  import { useTranslation } from "react-i18next";
 
   /** 1: Chỉ văn bản | 2: Văn bản và hình ảnh | 3: Chỉ hình ảnh */
   export const SIGNATURE_DISPLAY_MODE = {
@@ -79,6 +80,7 @@
     disabled,
     label,
   }) {
+    const { t } = useTranslation("common");
     const dragging = useRef(false);
     const start = useRef({ x: 0, y: 0, px: 0, py: 0 });
 
@@ -134,7 +136,7 @@
         />
         {!disabled && (
           <div className="absolute -top-2 -right-2 bg-slate-900 text-white text-[10px] px-1.5 py-0.5 rounded shadow">
-            Kéo để di chuyển
+            {t("signModal.previewDragHint")}
           </div>
         )}
       </div>
@@ -160,6 +162,7 @@
     onBuildImage,
     onReset,
   }) {
+    const { t } = useTranslation("common");
     useEffect(() => {
       if (!open) return;
       onBuildImage?.();
@@ -177,11 +180,10 @@
           <div className="px-6 py-4 border-b flex items-center justify-between bg-white/95 backdrop-blur">
             <div>
               <h3 className="font-semibold text-gray-900 text-base md:text-lg">
-                Xem trước chữ ký
+                {t("signModal.previewSignature")}
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                Bạn có thể kéo để chỉnh vị trí (mặc định: ảnh bên trái, chữ ký bên
-                phải).
+                {t("signModal.previewHint")}
               </p>
             </div>
             <button
@@ -219,7 +221,7 @@
                 size={logoSize}
                 boxRef={previewBoxRef}
                 disabled={!canDragLogo}
-                label="Ảnh"
+                label={t("signModal.previewImageLabel")}
               />
 
               <DraggableLayer
@@ -233,7 +235,7 @@
                 size={sigSize}
                 boxRef={previewBoxRef}
                 disabled={!canDragSig}
-                label="Chữ ký"
+                label={t("signModal.previewSigLabel")}
               />
             </div>
 
@@ -247,7 +249,7 @@
                 className="text-xs md:text-sm px-3 py-2 rounded-lg border border-slate-200 hover:bg-slate-50"
                 disabled={loading}
               >
-                Reset vị trí
+                {t("signModal.previewReset")}
               </button>
 
               <div className="flex items-center gap-2">
@@ -257,7 +259,7 @@
                   className="text-xs md:text-sm px-4 py-2 rounded-lg border border-slate-200 hover:bg-slate-50"
                   disabled={loading}
                 >
-                  Chỉnh lại
+                  {t("signModal.previewAdjust")}
                 </button>
                 <button
                   type="button"
@@ -265,7 +267,7 @@
                   className="text-xs md:text-sm px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
                   disabled={loading}
                 >
-                  {loading ? "Đang xử lý..." : "Đồng ý"}
+                  {loading ? t("signModal.processing") : t("signModal.previewAgree")}
                 </button>
               </div>
             </div>
@@ -273,11 +275,11 @@
             {finalSignatureImage && (
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                 <div className="text-xs font-semibold text-slate-700 mb-2">
-                  Ảnh chữ ký cuối cùng (sẽ gửi lên server)
+                  {t("signModal.previewFinal")}
                 </div>
                 <img
                   src={finalSignatureImage}
-                  alt="Final signature"
+                  alt={t("signModal.previewSigLabel")}
                   className="max-h-44 w-auto rounded-md border bg-white"
                 />
               </div>
@@ -298,6 +300,7 @@
     onResendOtp,
     stepIndicator,
   }) {
+    const { t } = useTranslation("common");
     const [step, setStep] = useState(1);
     const [signatureDisplayMode, setSignatureDisplayMode] = useState(1);
 
@@ -592,7 +595,7 @@
           )}
           <div className="px-6 py-4 border-b flex items-center justify-between sticky top-0 bg-white/95 backdrop-blur">
             <h3 className="font-semibold text-gray-900 text-base md:text-lg">
-              {step === 1 ? "Ký hợp đồng" : "Nhập mã OTP"}
+              {step === 1 ? t("signModal.stepTitle1") : t("signModal.stepTitle2")}
             </h3>
             <button
               onClick={onClose}
@@ -607,22 +610,15 @@
             {step === 1 ? (
               <>
                 <p className="text-sm text-gray-600 mb-4">
-                  Vui lòng tạo chữ ký và xác nhận điều khoản để tiếp tục ký hợp
-                  đồng{" "}
-                  {contractName ? (
-                    <span className="font-semibold text-gray-800">
-                      “{contractName}”
-                    </span>
-                  ) : (
-                    ""
-                  )}
-                  .
+                  {contractName
+                    ? t("signModal.step1IntroWithContract", { contractName })
+                    : t("signModal.step1Intro") + "."}
                 </p>
 
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-800 mb-2">
-                      Chế độ hiển thị chữ ký
+                      {t("signModal.displayMode")}
                     </label>
                     <div className="flex flex-col gap-2.5">
                       <label className={optionCardClass(1)}>
@@ -634,7 +630,7 @@
                           onChange={() => setSignatureDisplayMode(1)}
                           className="h-4 w-4 text-blue-600 border-slate-300"
                         />
-                        <span className="text-gray-800">1. Chỉ chữ ký (vẽ)</span>
+                        <span className="text-gray-800">{t("signModal.displayModeOption1")}</span>
                       </label>
 
                       <label className={optionCardClass(2)}>
@@ -647,7 +643,7 @@
                           className="h-4 w-4 text-blue-600 border-slate-300"
                         />
                         <span className="text-gray-800">
-                          2. Chữ ký (vẽ) và hình ảnh
+                          {t("signModal.displayModeOption2")}
                         </span>
                       </label>
 
@@ -660,7 +656,7 @@
                           onChange={() => setSignatureDisplayMode(3)}
                           className="h-4 w-4 text-blue-600 border-slate-300"
                         />
-                        <span className="text-gray-800">3. Chỉ hình ảnh</span>
+                        <span className="text-gray-800">{t("signModal.displayModeOption3")}</span>
                       </label>
                     </div>
                   </div>
@@ -668,7 +664,7 @@
                   {(signatureDisplayMode === 1 || signatureDisplayMode === 2) && (
                     <div>
                       <label className="block text-sm font-medium text-gray-800 mb-1">
-                        Chữ ký (vẽ)
+                        {t("signModal.drawSignature")}
                       </label>
                       <div className="border border-slate-200 rounded-lg overflow-hidden bg-white">
                         <canvas
@@ -688,15 +684,15 @@
                             onClick={clearCanvas}
                             className="text-xs md:text-sm text-gray-500 hover:text-red-600"
                           >
-                            Xóa và vẽ lại
+                            {t("signModal.drawClear")}
                           </button>
                           {drawnSignature ? (
                             <span className="text-xs text-emerald-600 font-medium">
-                              Đã có chữ ký
+                              {t("signModal.drawPresent")}
                             </span>
                           ) : (
                             <span className="text-xs text-slate-500">
-                              Chưa vẽ chữ ký
+                              {t("signModal.drawAbsent")}
                             </span>
                           )}
                         </div>
@@ -708,13 +704,13 @@
                     <div>
                       <label className="block text-sm font-medium text-gray-800 mb-1">
                         {signatureDisplayMode === 2
-                          ? "Ảnh (logo / hình ảnh)"
-                          : "Ảnh (chữ ký dạng hình)"}
+                          ? t("signModal.imageLogo")
+                          : t("signModal.imageOnly")}
                       </label>
                       <p className="text-xs text-gray-600 mb-2">
                         {signatureDisplayMode === 2
-                          ? "Mặc định ở bước xem trước: ảnh bên trái, chữ ký bên phải."
-                          : "Ảnh này sẽ được dùng làm chữ ký."}
+                          ? t("signModal.imageHintMode2")
+                          : t("signModal.imageHintMode3")}
                       </p>
                       <input
                         type="file"
@@ -725,11 +721,11 @@
                       {uploadedImage && (
                         <div className="mt-2">
                           <p className="text-xs text-gray-500 mb-1">
-                            Xem trước ảnh đã chọn:
+                            {t("signModal.imagePreviewLabel")}
                           </p>
                           <img
                             src={uploadedImage}
-                            alt="Ảnh đã chọn"
+                            alt={t("signModal.imageSelectedAlt")}
                             className="max-h-32 border rounded-md"
                           />
                         </div>
@@ -744,11 +740,11 @@
                       className="mt-1"
                     />
                     <span className="text-sm text-gray-700 leading-relaxed">
-                      Tôi xác nhận đã đọc và đồng ý với các{" "}
+                      {t("signModal.termsPart1")}{" "}
                       <span className="text-blue-600 hover:underline cursor-pointer">
-                        điều khoản, điều kiện
+                        {t("signModal.termsLink")}
                       </span>{" "}
-                      của hợp đồng và nền tảng ký số.
+                      {t("signModal.termsPart2")}
                     </span>
                   </label>
                 </div>
@@ -759,14 +755,14 @@
                     disabled={loading}
                     className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
                   >
-                    Hủy bỏ
+                    {t("actions.cancelLong")}
                   </button>
                   <button
                     onClick={openPreview}
                     disabled={!isValidStep1 || loading}
                     className="px-4 py-2 rounded-lg text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
                   >
-                    {loading ? "Đang xử lý..." : "Xem trước chữ ký"}
+                    {loading ? t("signModal.processing") : t("signModal.previewSignature")}
                   </button>
                 </div>
 
@@ -793,24 +789,22 @@
             ) : (
               <>
                 <p className="text-sm text-gray-600 mb-3">
-                  Mã OTP đã được gửi đến số điện thoại/email của bạn. Vui lòng
-                  nhập mã 6 chữ số để hoàn tất ký hợp đồng.
+                  {t("signModal.otpIntro")}
                 </p>
 
                 {typeof remainingSeconds === "number" && (
                   <div className="mb-3 text-sm text-gray-700 flex items-baseline gap-2 flex-wrap">
                     {remainingSeconds > 0 ? (
                       <span className="font-semibold">
-                        {String(Math.floor(remainingSeconds / 60)).padStart(
-                          2,
-                          "0",
-                        )}{" "}
-                        Phút {String(remainingSeconds % 60).padStart(2, "0")} Giây
+                        {t("signModal.otpMinuteSecond", {
+                          minutes: String(Math.floor(remainingSeconds / 60)).padStart(2, "0"),
+                          seconds: String(remainingSeconds % 60).padStart(2, "0"),
+                        })}
                       </span>
                     ) : (
                       <>
                         <span className="text-red-500 font-medium">
-                          OTP đã hết hạn.
+                          {t("signModal.otpExpired")}
                         </span>
                         {onResendOtp && (
                           <button
@@ -821,7 +815,7 @@
                             }
                             className="ml-1 px-3 py-1 text-xs font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
                           >
-                            {loading ? "Đang gửi..." : "Gửi lại OTP"}
+                            {loading ? t("signModal.otpSending") : t("signModal.otpResend")}
                           </button>
                         )}
                       </>
@@ -847,14 +841,14 @@
                     disabled={loading}
                     className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-60"
                   >
-                    Quay lại
+                    {t("signModal.otpBack")}
                   </button>
                   <button
                     onClick={handleStep2Submit}
                     disabled={!isValidStep2 || loading}
                     className="px-4 py-2 rounded-lg text-sm bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
                   >
-                    {loading ? "Đang ký..." : "Hoàn tất ký"}
+                    {loading ? t("signModal.otpSigning") : t("signModal.otpComplete")}
                   </button>
                 </div>
               </>
