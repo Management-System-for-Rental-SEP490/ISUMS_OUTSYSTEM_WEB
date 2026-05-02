@@ -20,7 +20,7 @@ function CccdLoadingOverlay({ done, onDone }) {
           clearInterval(interval);
           return 99;
         }
-        const increment = p < 30 ? 1.5 : p < 85 ? 1 : 0.4;
+        const increment = p < 30 ? 0.8 : p < 85 ? 0.55 : 0.28;
         const next = Math.min(p + increment, 99);
         progressRef.current = next;
         return next;
