@@ -1,8 +1,21 @@
-import { useRef, useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-// Ranges stay module-scope; labels are resolved inside the component so the
-// i18n runtime can pick the right locale per render.
+/**
+ * PassportModal — foreign-tenant identity verification.
+ *
+ * Shape mirrors CccdModal (same loading overlay + rotate + crop UX) but
+ * with a single upload box instead of front/back. BE counterpart:
+ * PUT /econtracts/{id}/passport, field name `passportImage`.
+ *
+ * Kept in its own file (instead of branching inside CccdModal) because:
+ *   1. Copy is different (passport info page vs 2-sided VN CCCD).
+ *   2. Future validators will diverge (MRZ parser for passport vs CCCD OCR).
+ *   3. Smaller components are easier to i18n in FE-7.
+ */
+
+// Step labels are resolved from i18n inside the component so the same
+// STEPS array shape (range tuples) can stay module-scope for readability.
 const STEP_RANGES = [
   [0, 15],
   [15, 30],
@@ -10,77 +23,53 @@ const STEP_RANGES = [
   [85, 100],
 ];
 
-const OCR_ERROR_MESSAGE_KEYS = {
-  OCR_NOT_FRONT_SIDE: "cccd.errors.notFrontSide",
-  OCR_NOT_BACK_SIDE: "cccd.errors.notBackSide",
-  OCR_CANNOT_READ_ID: "cccd.errors.cannotReadId",
-  OCR_CANNOT_READ_NAME: "cccd.errors.cannotReadName",
-  OCR_ID_MISMATCH: "cccd.errors.idMismatch",
-  OCR_NAME_MISMATCH: "cccd.errors.nameMismatch",
-  OCR_IMAGE_NOT_READABLE: "cccd.errors.imageNotReadable",
-  OCR_SERVICE_UNAVAILABLE: "cccd.errors.serviceUnavailable",
-};
-
-function getApiErrorMessage(err, fallback, t) {
-  const data = err?.response?.data;
-  const code = data?.code || data?.errorCode || data?.errors?.find((item) => item?.code)?.code;
-  if (code && OCR_ERROR_MESSAGE_KEYS[code]) {
-    return t(OCR_ERROR_MESSAGE_KEYS[code]);
-  }
-  return (
-    data?.message ||
-    data?.errors?.find((item) => item?.message)?.message ||
-    data?.error ||
-    err?.message ||
-    fallback
-  );
-}
-
-function CccdLoadingOverlay({ done, onDone }) {
+function PassportLoadingOverlay({ done, onDone }) {
   const { t } = useTranslation("common");
-  const steps = [
-    { label: t("cccd.processing.uploading"),  range: STEP_RANGES[0] },
-    { label: t("cccd.processing.scanning"),   range: STEP_RANGES[1] },
-    { label: t("cccd.processing.analyzing"),  range: STEP_RANGES[2] },
-    { label: t("cccd.processing.finalizing"), range: STEP_RANGES[3] },
+  const STEP_LABELS = [
+    t("cccd.processing.uploading"),        // "Uploading images..."
+    t("passport.processing.scanning"),     // "Scanning passport data..."
+    t("passport.processing.analyzing"),    // "Analyzing passport..."
+    t("cccd.processing.finalizing"),       // "Finalizing contract..."
   ];
+  const steps = STEP_RANGES.map(([lo, hi], i) => ({
+    label: STEP_LABELS[i],
+    range: [lo, hi],
+  }));
   const [progress, setProgress] = useState(0);
   const progressRef = useRef(0);
 
-  // Phase 1: tăng dần đến 95, sau đó creep chậm lên 99 khi chờ API
+  // Phase 1: climb to 95 so the user sees motion even if BE OCR is fast.
+  // Slow down near the end so the bar doesn't "overshoot" the real work.
   useEffect(() => {
-    if (done) return;
     const interval = setInterval(() => {
       setProgress((p) => {
-        if (p >= 99) {
+        if (p >= 95) {
           clearInterval(interval);
-          return 99;
+          return 95;
         }
-        const increment = p < 30 ? 0.8 : p < 85 ? 0.55 : 0.28;
-        const next = Math.min(p + increment, 99);
+        const increment = p < 40 ? 2 : p < 75 ? 1 : 0.4;
+        const next = Math.min(p + increment, 95);
         progressRef.current = next;
         return next;
       });
     }, 160);
     return () => clearInterval(interval);
-  }, [done]);
+  }, []);
 
-  // Phase 2: khi API xong, sprint nhanh từ vị trí hiện tại lên 100 rồi gọi onDone
+  // Phase 2: when the API comes back `done=true`, sprint 95→100 then
+  // hand control back so the modal can close.
   useEffect(() => {
     if (!done) return;
     let p = Math.round(progressRef.current);
-    const fast = p < 99;
-    const step = fast ? 2 : 1;
-    const intervalMs = fast ? 30 : 60;
     const sprint = setInterval(() => {
-      p = Math.min(p + step, 100);
+      p += 1;
       progressRef.current = p;
       setProgress(p);
       if (p >= 100) {
         clearInterval(sprint);
         setTimeout(onDone, 200);
       }
-    }, intervalMs);
+    }, 60);
     return () => clearInterval(sprint);
   }, [done]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -88,14 +77,12 @@ function CccdLoadingOverlay({ done, onDone }) {
   const activeStep = steps.findIndex((s) => pct < s.range[1]);
   const currentStep = activeStep === -1 ? steps.length - 1 : activeStep;
 
-  // SVG circular progress
   const r = 44;
   const circ = 2 * Math.PI * r;
   const dash = circ * (pct / 100);
 
   return (
     <div className="flex flex-col items-center justify-center px-8 py-10 gap-6">
-      {/* Circular progress */}
       <div className="relative flex items-center justify-center w-28 h-28">
         <svg
           className="absolute inset-0 w-full h-full -rotate-90"
@@ -137,45 +124,42 @@ function CccdLoadingOverlay({ done, onDone }) {
         </div>
       </div>
 
-      {/* Title */}
       <div className="text-center">
         <p className="text-lg font-bold text-gray-800">
-          {t("cccd.processing.title")}
+          {t("passport.processing.title")}
         </p>
         <p className="mt-1 text-sm text-gray-500">
           {t("cccd.processing.subtitle")}
         </p>
       </div>
 
-      {/* Steps */}
       <div className="w-full flex flex-col gap-3">
         {steps.map((step, i) => {
-          const done = pct >= step.range[1];
-          const active = i === currentStep && !done;
+          const d = pct >= step.range[1];
+          const active = i === currentStep && !d;
           return (
             <div
               key={i}
               className={[
                 "flex items-center gap-3 px-4 py-3 rounded-xl border transition-colors",
-                done
+                d
                   ? "bg-white border-gray-200"
                   : active
                     ? "bg-teal-50 border-teal-200"
                     : "bg-white border-gray-100",
               ].join(" ")}
             >
-              {/* Icon */}
               <div
                 className={[
                   "w-9 h-9 rounded-full flex items-center justify-center shrink-0",
-                  done
+                  d
                     ? "bg-green-500"
                     : active
                       ? "bg-white border-2 border-teal-400"
                       : "bg-gray-100",
                 ].join(" ")}
               >
-                {done ? (
+                {d ? (
                   <svg
                     className="w-4 h-4 text-white"
                     fill="none"
@@ -223,7 +207,6 @@ function CccdLoadingOverlay({ done, onDone }) {
                   </svg>
                 )}
               </div>
-              {/* Text */}
               <div>
                 <p className="text-sm font-medium text-gray-700">
                   {step.label}
@@ -231,14 +214,14 @@ function CccdLoadingOverlay({ done, onDone }) {
                 <p
                   className={[
                     "text-xs font-medium",
-                    done
+                    d
                       ? "text-green-500"
                       : active
                         ? "text-teal-500"
                         : "text-gray-400",
                   ].join(" ")}
                 >
-                  {done
+                  {d
                     ? t("cccd.processing.statusDone")
                     : active
                       ? t("cccd.processing.statusActive")
@@ -250,7 +233,6 @@ function CccdLoadingOverlay({ done, onDone }) {
         })}
       </div>
 
-      {/* Footer badge */}
       <div className="flex items-center gap-1.5 text-xs text-gray-400 mt-1">
         <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
           <path
@@ -265,7 +247,9 @@ function CccdLoadingOverlay({ done, onDone }) {
   );
 }
 
-/** Xoay ảnh bằng canvas và trả về File mới đã rotate */
+// ---- Shared helpers (rotate + crop) ----
+// Duplicated from CccdModal deliberately: FE-7 will i18n strings here and
+// keeping the pure geometry helpers local keeps the module self-contained.
 async function rotateImageFile(file, degrees) {
   if (degrees === 0) return file;
   const bitmap = await createImageBitmap(file);
@@ -288,7 +272,6 @@ async function rotateImageFile(file, degrees) {
 
 const clamp = (val, min, max) => Math.min(Math.max(val, min), max);
 
-/** Modal cắt ảnh */
 function CropModal({ src, originalFile, onCrop, onCancel }) {
   const { t } = useTranslation("common");
   const imgRef = useRef(null);
@@ -398,24 +381,12 @@ function CropModal({ src, originalFile, onCrop, onCancel }) {
 
   const handles = [
     { id: "tl", style: { top: -5, left: -5, cursor: "nw-resize" } },
-    {
-      id: "tc",
-      style: { top: -5, left: "50%", marginLeft: -5, cursor: "n-resize" },
-    },
+    { id: "tc", style: { top: -5, left: "50%", marginLeft: -5, cursor: "n-resize" } },
     { id: "tr", style: { top: -5, right: -5, cursor: "ne-resize" } },
-    {
-      id: "ml",
-      style: { top: "50%", left: -5, marginTop: -5, cursor: "w-resize" },
-    },
-    {
-      id: "mr",
-      style: { top: "50%", right: -5, marginTop: -5, cursor: "e-resize" },
-    },
+    { id: "ml", style: { top: "50%", left: -5, marginTop: -5, cursor: "w-resize" } },
+    { id: "mr", style: { top: "50%", right: -5, marginTop: -5, cursor: "e-resize" } },
     { id: "bl", style: { bottom: -5, left: -5, cursor: "sw-resize" } },
-    {
-      id: "bc",
-      style: { bottom: -5, left: "50%", marginLeft: -5, cursor: "s-resize" },
-    },
+    { id: "bc", style: { bottom: -5, left: "50%", marginLeft: -5, cursor: "s-resize" } },
     { id: "br", style: { bottom: -5, right: -5, cursor: "se-resize" } },
   ];
 
@@ -425,7 +396,6 @@ function CropModal({ src, originalFile, onCrop, onCancel }) {
         className="bg-white rounded-2xl shadow-xl flex flex-col w-full max-w-3xl"
         style={{ maxHeight: "90vh" }}
       >
-        {/* Header */}
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
           <div>
             <h3 className="text-base font-bold text-gray-800">{t("crop.title")}</h3>
@@ -437,12 +407,7 @@ function CropModal({ src, originalFile, onCrop, onCancel }) {
             onClick={onCancel}
             className="text-gray-400 hover:text-gray-600 transition-colors"
           >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -453,7 +418,6 @@ function CropModal({ src, originalFile, onCrop, onCancel }) {
           </button>
         </div>
 
-        {/* Image area */}
         <div
           className="flex-1 flex items-center justify-center p-6 bg-gray-900 overflow-auto"
           style={{ minHeight: "280px" }}
@@ -470,13 +434,12 @@ function CropModal({ src, originalFile, onCrop, onCancel }) {
 
             {cropBox && (
               <>
-                {/* SVG mask overlay */}
                 <svg
                   className="absolute inset-0 pointer-events-none"
                   style={{ width: "100%", height: "100%" }}
                 >
                   <defs>
-                    <mask id="cccd-crop-mask">
+                    <mask id="passport-crop-mask">
                       <rect width="100%" height="100%" fill="white" />
                       <rect
                         x={cropBox.x}
@@ -487,14 +450,12 @@ function CropModal({ src, originalFile, onCrop, onCancel }) {
                       />
                     </mask>
                   </defs>
-                  {/* Dark area outside crop */}
                   <rect
                     width="100%"
                     height="100%"
                     fill="rgba(0,0,0,0.55)"
-                    mask="url(#cccd-crop-mask)"
+                    mask="url(#passport-crop-mask)"
                   />
-                  {/* Crop border */}
                   <rect
                     x={cropBox.x}
                     y={cropBox.y}
@@ -504,42 +465,8 @@ function CropModal({ src, originalFile, onCrop, onCancel }) {
                     stroke="white"
                     strokeWidth={1.5}
                   />
-                  {/* Rule-of-thirds grid */}
-                  <line
-                    x1={cropBox.x + cropBox.w / 3}
-                    y1={cropBox.y}
-                    x2={cropBox.x + cropBox.w / 3}
-                    y2={cropBox.y + cropBox.h}
-                    stroke="rgba(255,255,255,0.3)"
-                    strokeWidth={1}
-                  />
-                  <line
-                    x1={cropBox.x + (2 * cropBox.w) / 3}
-                    y1={cropBox.y}
-                    x2={cropBox.x + (2 * cropBox.w) / 3}
-                    y2={cropBox.y + cropBox.h}
-                    stroke="rgba(255,255,255,0.3)"
-                    strokeWidth={1}
-                  />
-                  <line
-                    x1={cropBox.x}
-                    y1={cropBox.y + cropBox.h / 3}
-                    x2={cropBox.x + cropBox.w}
-                    y2={cropBox.y + cropBox.h / 3}
-                    stroke="rgba(255,255,255,0.3)"
-                    strokeWidth={1}
-                  />
-                  <line
-                    x1={cropBox.x}
-                    y1={cropBox.y + (2 * cropBox.h) / 3}
-                    x2={cropBox.x + cropBox.w}
-                    y2={cropBox.y + (2 * cropBox.h) / 3}
-                    stroke="rgba(255,255,255,0.3)"
-                    strokeWidth={1}
-                  />
                 </svg>
 
-                {/* Interactive move/resize layer */}
                 <div
                   className="absolute cursor-move"
                   style={{
@@ -564,7 +491,6 @@ function CropModal({ src, originalFile, onCrop, onCancel }) {
           </div>
         </div>
 
-        {/* Footer */}
         <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 shrink-0">
           <button
             onClick={onCancel}
@@ -584,14 +510,7 @@ function CropModal({ src, originalFile, onCrop, onCancel }) {
   );
 }
 
-function ImageUploadBox({
-  label,
-  preview,
-  rotation,
-  onSelect,
-  onRotate,
-  onCrop,
-}) {
+function ImageUploadBox({ label, preview, rotation, onSelect, onRotate, onCrop }) {
   const { t } = useTranslation("common");
   const inputRef = useRef(null);
 
@@ -614,7 +533,7 @@ function ImageUploadBox({
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleDrop}
         className={[
-          "relative flex flex-col items-center justify-center w-full h-52 rounded-xl transition-colors overflow-hidden",
+          "relative flex flex-col items-center justify-center w-full h-60 rounded-xl transition-colors overflow-hidden",
           preview
             ? "border-2 border-teal-400 bg-white"
             : "border-2 border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100 cursor-pointer",
@@ -628,23 +547,11 @@ function ImageUploadBox({
               className="absolute inset-0 w-full h-full object-contain p-2 transition-transform duration-300"
               style={{ transform: `rotate(${rotation}deg)` }}
             />
-            {/* Checkmark badge */}
             <span className="absolute top-2 right-2 flex items-center justify-center w-6 h-6 rounded-full bg-green-500 shadow z-10">
-              <svg
-                className="w-4 h-4 text-white"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={3}
-                  d="M5 13l4 4L19 7"
-                />
+              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
               </svg>
             </span>
-            {/* Nút đổi ảnh */}
             <button
               type="button"
               onClick={(e) => {
@@ -654,12 +561,7 @@ function ImageUploadBox({
               title={t("image.changeImageTip")}
               className="absolute bottom-2 left-2 z-10 flex items-center gap-1 px-2 py-1 rounded-full bg-white/90 border border-gray-200 shadow text-xs font-medium text-gray-600 hover:bg-white hover:text-blue-600 transition-colors"
             >
-              <svg
-                className="w-3.5 h-3.5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -669,7 +571,6 @@ function ImageUploadBox({
               </svg>
               {t("image.changeImage")}
             </button>
-            {/* Nút cắt ảnh */}
             <button
               type="button"
               onClick={(e) => {
@@ -679,12 +580,7 @@ function ImageUploadBox({
               title={t("image.cropTip")}
               className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1 px-2 py-1 rounded-full bg-white/90 border border-gray-200 shadow text-xs font-medium text-gray-600 hover:bg-white hover:text-purple-600 transition-colors"
             >
-              <svg
-                className="w-3.5 h-3.5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -694,7 +590,6 @@ function ImageUploadBox({
               </svg>
               {t("image.crop")}
             </button>
-            {/* Nút xoay ảnh */}
             <button
               type="button"
               onClick={(e) => {
@@ -704,12 +599,7 @@ function ImageUploadBox({
               title={t("image.rotateTip")}
               className="absolute bottom-2 right-2 z-10 flex items-center gap-1 px-2 py-1 rounded-full bg-white/90 border border-gray-200 shadow text-xs font-medium text-gray-600 hover:bg-white hover:text-teal-600 transition-colors"
             >
-              <svg
-                className="w-3.5 h-3.5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -722,33 +612,16 @@ function ImageUploadBox({
           </>
         ) : (
           <div className="flex flex-col items-center gap-2 select-none px-4 text-center">
-            <svg
-              className="w-10 h-10 text-gray-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <rect
-                x="3"
-                y="3"
-                width="18"
-                height="18"
-                rx="2"
-                strokeWidth={1.5}
-              />
+            <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <rect x="3" y="3" width="18" height="18" rx="2" strokeWidth={1.5} />
               <circle cx="8.5" cy="8.5" r="1.5" strokeWidth={1.5} />
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M21 15l-5-5L5 21"
-              />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 15l-5-5L5 21" />
             </svg>
             <span className="text-sm font-semibold text-gray-700">
               {t("image.dropHint")}
             </span>
             <span className="text-xs text-gray-400">
-              {t("image.dropFormatCccd")}
+              {t("image.dropFormatPassport")}
             </span>
           </div>
         )}
@@ -764,73 +637,60 @@ function ImageUploadBox({
   );
 }
 
-export default function CccdModal({ open, onClose, onConfirm, stepIndicator }) {
+/**
+ * Public passport identity modal. Accepts one image (passport info page),
+ * runs optional client-side rotate/crop, then calls `onConfirm(file)` with
+ * the processed File. Parent is responsible for the actual upload (so the
+ * modal stays transport-agnostic — same contract as CccdModal).
+ */
+export default function PassportModal({ open, onClose, onConfirm, stepIndicator }) {
   const { t } = useTranslation("common");
-  const [frontFile, setFrontFile] = useState(null);
-  const [backFile, setBackFile] = useState(null);
-  const [frontPreview, setFrontPreview] = useState(null);
-  const [backPreview, setBackPreview] = useState(null);
-  const [frontRotation, setFrontRotation] = useState(0);
-  const [backRotation, setBackRotation] = useState(0);
+  const [file, setFile] = useState(null);
+  const [preview, setPreview] = useState(null);
+  const [rotation, setRotation] = useState(0);
   const [loading, setLoading] = useState(false);
   const [apiDone, setApiDone] = useState(false);
   const [submitError, setSubmitError] = useState(null);
-  const [cropTarget, setCropTarget] = useState(null); // 'front' | 'back'
+  const [cropping, setCropping] = useState(false);
 
   if (!open) return null;
 
-  const handleSelect = (side, file) => {
-    const url = URL.createObjectURL(file);
-    if (side === "front") {
-      setFrontFile(file);
-      setFrontPreview(url);
-      setFrontRotation(0);
-    } else {
-      setBackFile(file);
-      setBackPreview(url);
-      setBackRotation(0);
-    }
+  const handleSelect = (f) => {
+    setFile(f);
+    setPreview(URL.createObjectURL(f));
+    setRotation(0);
   };
 
   const handleCropDone = (croppedFile, croppedUrl) => {
-    if (cropTarget === "front") {
-      setFrontFile(croppedFile);
-      setFrontPreview(croppedUrl);
-      setFrontRotation(0);
-    } else {
-      setBackFile(croppedFile);
-      setBackPreview(croppedUrl);
-      setBackRotation(0);
-    }
-    setCropTarget(null);
+    setFile(croppedFile);
+    setPreview(croppedUrl);
+    setRotation(0);
+    setCropping(false);
   };
 
   const handleSubmit = async () => {
-    if (!frontFile || !backFile) return;
+    if (!file) return;
     setLoading(true);
     setApiDone(false);
     setSubmitError(null);
     try {
-      const [rotatedFront, rotatedBack] = await Promise.all([
-        rotateImageFile(frontFile, frontRotation),
-        rotateImageFile(backFile, backRotation),
-      ]);
-      await onConfirm(rotatedFront, rotatedBack);
-      setApiDone(true); // trigger sprint 95→100 rồi overlay tự gọi onDone
+      const rotated = await rotateImageFile(file, rotation);
+      await onConfirm(rotated);
+      setApiDone(true);
     } catch (err) {
-      setSubmitError(getApiErrorMessage(err, t("cccd.verifyFailed"), t));
+      const msg =
+        err?.response?.data?.message ||
+        t("passport.verifyFailed");
+      setSubmitError(msg);
       setLoading(false);
     }
   };
 
   const handleClose = () => {
     if (loading) return;
-    setFrontFile(null);
-    setBackFile(null);
-    setFrontPreview(null);
-    setBackPreview(null);
-    setFrontRotation(0);
-    setBackRotation(0);
+    setFile(null);
+    setPreview(null);
+    setRotation(0);
     onClose();
   };
 
@@ -842,14 +702,13 @@ export default function CccdModal({ open, onClose, onConfirm, stepIndicator }) {
             {stepIndicator}
           </div>
         )}
-        {/* Header */}
         <div className="px-6 pt-6 pb-3 flex items-start justify-between">
           <div>
             <h3 className="text-lg font-bold text-[#1a3d52]">
-              {t("cccd.modalTitle")}
+              {t("passport.modalTitle")}
             </h3>
             <p className="mt-1 text-sm text-gray-500 leading-relaxed">
-              {t("cccd.modalDescription")}
+              {t("passport.modalDescription")}
             </p>
           </div>
           <button
@@ -857,58 +716,31 @@ export default function CccdModal({ open, onClose, onConfirm, stepIndicator }) {
             disabled={loading}
             className="ml-4 mt-0.5 text-gray-400 hover:text-gray-600 disabled:opacity-50 transition-colors shrink-0"
           >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
 
-        {/* Loading overlay */}
         {loading && (
-          <CccdLoadingOverlay done={apiDone} onDone={() => setLoading(false)} />
+          <PassportLoadingOverlay done={apiDone} onDone={() => setLoading(false)} />
         )}
 
-        {/* Upload boxes */}
         <div className={`px-6 pt-3 pb-4 ${loading ? "hidden" : ""}`}>
-          <div className="grid grid-cols-2 gap-4">
-            <ImageUploadBox
-              label={t("cccd.frontLabel")}
-              preview={frontPreview}
-              rotation={frontRotation}
-              onSelect={(f) => handleSelect("front", f)}
-              onRotate={() => setFrontRotation((r) => (r + 90) % 360)}
-              onCrop={() => setCropTarget("front")}
-            />
-            <ImageUploadBox
-              label={t("cccd.backLabel")}
-              preview={backPreview}
-              rotation={backRotation}
-              onSelect={(f) => handleSelect("back", f)}
-              onRotate={() => setBackRotation((r) => (r + 90) % 360)}
-              onCrop={() => setCropTarget("back")}
-            />
-          </div>
+          <ImageUploadBox
+            label={t("passport.infoPageLabel")}
+            preview={preview}
+            rotation={rotation}
+            onSelect={handleSelect}
+            onRotate={() => setRotation((r) => (r + 90) % 360)}
+            onCrop={() => setCropping(true)}
+          />
         </div>
 
-        {/* Tips */}
         <div
           className={`mx-6 mb-5 rounded-xl bg-slate-50 border border-slate-200 p-4 flex gap-3 ${loading ? "hidden" : ""}`}
         >
-          <svg
-            className="w-5 h-5 text-blue-500 shrink-0 mt-0.5"
-            fill="currentColor"
-            viewBox="0 0 20 20"
-          >
+          <svg className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
             <path
               fillRule="evenodd"
               clipRule="evenodd"
@@ -917,16 +749,15 @@ export default function CccdModal({ open, onClose, onConfirm, stepIndicator }) {
           </svg>
           <div className="text-sm text-gray-600">
             <p className="font-semibold text-gray-700 mb-1">
-              {t("cccd.tipsTitle")}
+              {t("passport.tipsTitle")}
             </p>
             <ul className="list-disc list-inside space-y-0.5">
-              <li>{t("cccd.tip1")}</li>
-              <li>{t("cccd.tip2")}</li>
+              <li>{t("passport.tip1")}</li>
+              <li>{t("passport.tip2")}</li>
             </ul>
           </div>
         </div>
 
-        {/* Error banner */}
         <div
           className="mx-6 overflow-hidden transition-all duration-500 ease-in-out"
           style={{
@@ -936,11 +767,7 @@ export default function CccdModal({ open, onClose, onConfirm, stepIndicator }) {
           }}
         >
           <div className="flex items-start gap-2.5 rounded-xl bg-red-50 border border-red-200 px-4 py-3">
-            <svg
-              className="w-4 h-4 text-red-500 shrink-0 mt-0.5"
-              fill="currentColor"
-              viewBox="0 0 20 20"
-            >
+            <svg className="w-4 h-4 text-red-500 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
               <path
                 fillRule="evenodd"
                 clipRule="evenodd"
@@ -951,7 +778,6 @@ export default function CccdModal({ open, onClose, onConfirm, stepIndicator }) {
           </div>
         </div>
 
-        {/* Footer */}
         <div
           className={`px-6 pb-6 flex items-center justify-end gap-4 ${loading ? "hidden" : ""}`}
         >
@@ -965,7 +791,7 @@ export default function CccdModal({ open, onClose, onConfirm, stepIndicator }) {
           </button>
           <button
             type="button"
-            disabled={!frontFile || !backFile || loading}
+            disabled={!file || loading}
             onClick={handleSubmit}
             className="px-7 py-2.5 rounded-full text-sm font-semibold bg-[#1a3d52] text-white hover:bg-[#15324a] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
@@ -974,13 +800,12 @@ export default function CccdModal({ open, onClose, onConfirm, stepIndicator }) {
         </div>
       </div>
 
-      {/* Crop modal */}
-      {cropTarget && (
+      {cropping && preview && file && (
         <CropModal
-          src={cropTarget === "front" ? frontPreview : backPreview}
-          originalFile={cropTarget === "front" ? frontFile : backFile}
+          src={preview}
+          originalFile={file}
           onCrop={handleCropDone}
-          onCancel={() => setCropTarget(null)}
+          onCancel={() => setCropping(false)}
         />
       )}
     </div>

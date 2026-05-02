@@ -1,10 +1,20 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { ContractViewPage } from "./features/contract/pages/ContractViewPage";
 import { ContractConfirmPage } from "./features/contract/pages/ContractConfirmPage";
 import PaymentResultPage from "./features/payment/pages/PaymentResultPage";
 import PaymentRedirectPage from "./features/payment/pages/PaymentRedirectPage";
 import "./App.css";
 import { ToastContainer } from "react-toastify";
+
+function NotFound() {
+  const { t } = useTranslation("common");
+  return (
+    <div style={{ padding: "2rem", textAlign: "center" }}>
+      <p>{t("errors.notFound")}</p>
+    </div>
+  );
+}
 
 function App() {
   return (
@@ -24,16 +34,7 @@ function App() {
         <Route path="/payments" element={<PaymentRedirectPage />} />
         {/* Kết quả thanh toán VNPay */}
         <Route path="/payments/result" element={<PaymentResultPage />} />
-        <Route
-          path="*"
-          element={
-            <div style={{ padding: "2rem", textAlign: "center" }}>
-              <p>
-                Đường dẫn không hợp lệ. Vui lòng sử dụng đường dẫn từ email.
-              </p>
-            </div>
-          }
-        />
+        <Route path="*" element={<NotFound />} />
       </Routes>
       <ToastContainer position="top-center" autoClose={3000} />
     </BrowserRouter>

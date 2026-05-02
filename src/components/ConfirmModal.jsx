@@ -1,15 +1,23 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 export default function ConfirmModal({
   open,
   onClose,
   onConfirm,
   onReject,
-  title = "Ký hợp đồng",
-  confirmLabel = "Tiếp tục",
-  cancelLabel = "Hủy bỏ",
+  title,
+  confirmLabel,
+  cancelLabel,
   stepIndicator,
 }) {
+  const { t } = useTranslation("common");
+  // Resolve defaults lazily inside the component so i18n is live. Callers
+  // that pass explicit title/label props still win.
+  const resolvedTitle = title ?? t("confirmModal.title");
+  const resolvedConfirmLabel = confirmLabel ?? t("confirmModal.confirmLabel");
+  const resolvedCancelLabel = cancelLabel ?? t("actions.cancelLong");
+
   const [checked, setChecked] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showRejectBox, setShowRejectBox] = useState(false);
@@ -49,7 +57,7 @@ export default function ConfirmModal({
         )}
         <div className="px-6 py-4 flex items-center justify-between border-b bg-white/95 backdrop-blur">
           <h3 className="text-base md:text-lg font-semibold text-gray-900">
-            {title}
+            {resolvedTitle}
           </h3>
           <button
             onClick={onClose}
@@ -75,8 +83,7 @@ export default function ConfirmModal({
         <div className="px-6 py-6 space-y-6">
           <div className="space-y-3">
             <p className="text-sm text-gray-800 font-medium">
-              Vui lòng đồng ý với điều khoản trước khi tiếp tục thực hiện ký
-              hợp đồng.
+              {t("confirmModal.agreePrompt")}
             </p>
 
             <label className="flex items-start gap-3 cursor-pointer">
@@ -87,11 +94,11 @@ export default function ConfirmModal({
                 className="mt-1 w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
               />
               <span className="text-sm text-gray-700 leading-relaxed">
-                Tôi xác nhận đã đọc và đồng ý với các{" "}
+                {t("signModal.termsPart1")}{" "}
                 <a href="#" className="text-blue-600 hover:underline">
-                  điều khoản, điều kiện
+                  {t("signModal.termsLink")}
                 </a>{" "}
-                của hợp đồng và nền tảng ký số.
+                {t("signModal.termsPart2")}
               </span>
             </label>
           </div>
@@ -99,13 +106,13 @@ export default function ConfirmModal({
           {showRejectBox && (
             <div className="space-y-2">
               <p className="text-sm font-medium text-red-600">
-                Vui lòng nhập lý do từ chối ký:
+                {t("confirmModal.rejectPromptTitle")}
               </p>
               <textarea
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
                 rows={3}
-                placeholder="Nhập lý do từ chối..."
+                placeholder={t("confirmModal.rejectPlaceholder")}
                 className="w-full rounded-lg border border-red-300 px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-400 resize-none"
                 disabled={rejectLoading}
               />
@@ -116,7 +123,7 @@ export default function ConfirmModal({
                   disabled={rejectLoading}
                   className="px-4 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-60"
                 >
-                  Quay lại
+                  {t("confirmModal.rejectBack")}
                 </button>
                 <button
                   type="button"
@@ -124,7 +131,7 @@ export default function ConfirmModal({
                   disabled={!rejectReason.trim() || rejectLoading}
                   className="px-4 py-1.5 rounded-lg text-sm font-bold bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  {rejectLoading ? "ĐANG GỬI..." : "Xác nhận từ chối"}
+                  {rejectLoading ? t("confirmModal.rejectSubmitting") : t("confirmModal.rejectSubmit")}
                 </button>
               </div>
             </div>
@@ -133,7 +140,7 @@ export default function ConfirmModal({
           {!showRejectBox && (
             <div className="text-center pt-2">
               <p className="text-sm font-semibold text-red-500">
-                Nhấn "Tiếp tục" để chuyển sang bước ký hợp đồng.
+                {t("confirmModal.hintContinue")}
               </p>
             </div>
           )}
@@ -160,7 +167,7 @@ export default function ConfirmModal({
                   d="M18.364 5.636l-12.728 12.728M5.636 5.636l12.728 12.728"
                 />
               </svg>
-              Từ chối ký
+              {t("confirmModal.rejectButton")}
             </button>
           )}
 
@@ -183,7 +190,7 @@ export default function ConfirmModal({
                 d="M6 18L18 6M6 6l12 12"
               />
             </svg>
-            {cancelLabel}
+            {resolvedCancelLabel}
           </button>
 
           <button
@@ -193,7 +200,7 @@ export default function ConfirmModal({
             className="flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-bold bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed shadow-sm"
           >
             {loading ? (
-              "ĐANG XỬ LÝ..."
+              t("confirmModal.processing")
             ) : (
               <>
                 <svg
@@ -209,7 +216,7 @@ export default function ConfirmModal({
                     d="M5 13l4 4L19 7"
                   />
                 </svg>
-                {confirmLabel}
+                {resolvedConfirmLabel}
               </>
             )}
           </button>

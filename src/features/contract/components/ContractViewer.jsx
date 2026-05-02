@@ -1,6 +1,7 @@
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
+import { useTranslation } from "react-i18next";
 
 import { A4_WIDTH_PX, A4_HEIGHT_PX } from "../utils/signatureUtils";
 import DragSignatureBox from "./DragSignatureBox";
@@ -27,6 +28,7 @@ export default function ContractViewer({
   signatureImage,
   signerName,
 }) {
+  const { t } = useTranslation("common");
   return (
     <div
       ref={scrollAreaRef}
@@ -40,7 +42,7 @@ export default function ContractViewer({
         {/* Hint banner */}
         <div className="flex items-center gap-2 text-xs text-slate-600 bg-white rounded-full px-4 py-2 shadow-sm ring-1 ring-slate-200">
           <span className="inline-flex h-2 w-2 rounded-full bg-emerald-400 shrink-0 ring-2 ring-emerald-100" />
-          Vui lòng kiểm tra kỹ nội dung trước khi thực hiện ký số
+          {t("contractViewer.checkBanner")}
         </div>
 
         {/* ── PDF page area ── */}
@@ -96,7 +98,7 @@ export default function ContractViewer({
                           d="M4 12a8 8 0 018-8v8z"
                         />
                       </svg>
-                      Đang tải hợp đồng...
+                      {t("contractViewer.loading")}
                     </div>
                   }
                 >
@@ -138,7 +140,7 @@ export default function ContractViewer({
                                 d="M19 13l-7 7-7-7m14-8l-7 7-7-7"
                               />
                             </svg>
-                            Trang {i + 1}
+                            {t("contractViewer.pageNum", { n: i + 1 })}
                           </div>
                         </div>
                       )}
@@ -173,12 +175,12 @@ export default function ContractViewer({
             className="text-xs text-slate-600 bg-white rounded-xl px-4 py-2.5 shadow-sm ring-1 ring-slate-200 flex items-center gap-2"
             style={{ width: 794 }}
           >
-            <span className="text-slate-400">Trang</span>
+            <span className="text-slate-400">{t("contractViewer.pageLabel")}</span>
             <span className="font-semibold text-blue-700">
               {currentPlacement.signingPage}
             </span>
             <span className="text-slate-300">·</span>
-            <span className="text-slate-400">Tọa độ PDF (pt)</span>
+            <span className="text-slate-400">{t("contractViewer.pdfCoord")}</span>
             <span className="font-mono text-slate-500">
               {currentPlacement.signingPosition}
             </span>
@@ -188,7 +190,7 @@ export default function ContractViewer({
         {/* Footer */}
         <div className="flex items-center gap-3 text-slate-400 text-xs py-2">
           <span className="inline-block w-10 border-t border-slate-300" />
-          Hết nội dung hợp đồng
+          {t("contractViewer.endOfContract")}
           <span className="inline-block w-10 border-t border-slate-300" />
         </div>
       </div>

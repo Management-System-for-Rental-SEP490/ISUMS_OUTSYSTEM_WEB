@@ -1,10 +1,15 @@
 import { useSearchParams, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
-const formatCurrency = (amountStr) => {
+// BCP-47 mapping for Intl.NumberFormat so currency grouping follows the
+// tenant's contract locale (en-US comma, ja-JP no-space-but-same-format).
+const LOCALE_MAP = { vi: "vi-VN", en: "en-US", ja: "ja-JP" };
+
+const formatCurrency = (amountStr, bcp47 = "vi-VN") => {
   if (!amountStr) return "0";
   // VNPay amount is multiplied by 100
   const amount = parseInt(amountStr, 10) / 100;
-  return amount.toLocaleString("vi-VN");
+  return amount.toLocaleString(bcp47);
 };
 
 const formatDate = (dateStr) => {
@@ -33,6 +38,8 @@ const BANK_LABELS = {
 };
 
 export default function PaymentResultPage() {
+  const { t, i18n } = useTranslation("common");
+  const bcp47 = LOCALE_MAP[(i18n.language || "vi").slice(0, 2)] || "vi-VN";
   const [params] = useSearchParams();
   const navigate = useNavigate();
 
@@ -40,7 +47,7 @@ export default function PaymentResultPage() {
   const transactionStatus = params.get("vnp_TransactionStatus");
   const isSuccess = responseCode === "00" && transactionStatus === "00";
 
-  const amount = formatCurrency(params.get("vnp_Amount"));
+  const amount = formatCurrency(params.get("vnp_Amount"), bcp47);
   const bankCode = params.get("vnp_BankCode") ?? "";
   const bankTranNo = params.get("vnp_BankTranNo") ?? "";
   const payDate = formatDate(params.get("vnp_PayDate"));
@@ -91,19 +98,19 @@ export default function PaymentResultPage() {
           )}
 
           <h1 className="text-2xl font-bold text-gray-800">
-            {isSuccess ? "Thanh toán thành công!" : "Thanh toán thất bại!"}
+            {isSuccess ? t("payment.successBang") : t("payment.failBang")}
           </h1>
           <p className="text-gray-500 text-sm mt-1">
             {isSuccess
-              ? "Giao dịch của bạn đã được xử lý an toàn."
-              : "Giao dịch không thành công. Vui lòng thử lại."}
+              ? t("payment.successSubtitle")
+              : t("payment.failSubtitle")}
           </p>
         </div>
 
         {/* Amount card */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-4">
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest text-center mb-1">
-            Số tiền thanh toán
+            {t("payment.amountLabel")}
           </p>
           <p
             className={`text-4xl font-bold text-center ${
@@ -117,31 +124,31 @@ export default function PaymentResultPage() {
 
         {/* Details card */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 divide-y divide-gray-100 mb-4">
-          {bankLabel && <DetailRow label="Ngân hàng" value={bankLabel} />}
+          {bankLabel && <DetailRow label={t("payment.bank")} value={bankLabel} />}
           <DetailRow
-            label="Trạng thái"
+            label={t("payment.status")}
             value={
               isSuccess ? (
                 <span className="inline-flex items-center gap-1.5 bg-green-50 text-green-600 text-sm font-medium px-3 py-1 rounded-full">
                   <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
-                  Thành công
+                  {t("payment.statusSuccess")}
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1.5 bg-red-50 text-red-600 text-sm font-medium px-3 py-1 rounded-full">
                   <span className="w-2 h-2 rounded-full bg-red-500 inline-block" />
-                  Thất bại
+                  {t("payment.statusFail")}
                 </span>
               )
             }
           />
           {bankTranNo && (
             <DetailRow
-              label="Mã giao dịch"
+              label={t("payment.transactionId")}
               value={<span className="font-semibold">{bankTranNo}</span>}
             />
           )}
-          {payDate && <DetailRow label="Ngày thực hiện" value={payDate} />}
-          {orderInfo && <DetailRow label="Nội dung" value={orderInfo} />}
+          {payDate && <DetailRow label={t("payment.payDate")} value={payDate} />}
+          {orderInfo && <DetailRow label={t("payment.orderInfo")} value={orderInfo} />}
         </div>
 
         {/* Security badge */}
@@ -163,10 +170,10 @@ export default function PaymentResultPage() {
           </div>
           <div>
             <p className="text-xs font-semibold text-gray-700">
-              Bảo mật bởi ISUMS
+              {t("payment.securedBy")}
             </p>
             <p className="text-xs text-gray-400 uppercase tracking-wide">
-              Hệ thống quản lý nhà cho thuê thông minh
+              {t("payment.platformTagline")}
             </p>
           </div>
         </div>
@@ -193,7 +200,7 @@ export default function PaymentResultPage() {
                   d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                 />
               </svg>
-              Xem hợp đồng
+              {t("payment.viewContract")}
             </button>
           )}
           <button
@@ -213,7 +220,7 @@ export default function PaymentResultPage() {
                 d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
               />
             </svg>
-            Về trang chủ
+            {t("payment.backHome")}
           </button>
         </div>
       </div>

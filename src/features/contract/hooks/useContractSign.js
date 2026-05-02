@@ -1,10 +1,15 @@
 import { useRef, useState } from "react";
 import { toast } from "react-toastify";
+import i18n from "../../../i18n";
 import { signEContract } from "../services/contract.api";
 import {
   getDownloadUrlFromSignResponse,
   getDefaultPosition,
 } from "../utils/signatureUtils";
+
+// i18next.t() called outside React components — the instance is a singleton
+// that's already init'd in i18n.js at app boot.
+const t = (...args) => i18n.t(...args);
 
 export function useContractSign({
   processCode,
@@ -60,7 +65,7 @@ export function useContractSign({
   const buildSignPayload = (signaturePayload, otp) => {
     const ctx = signContextRef.current;
     if (!ctx?.processId)
-      throw new Error("Thiếu processId từ bước ready contract.");
+      throw new Error(t("signHooks.missingProcessId"));
 
     const [llx, lly, urx, ury] = currentPlacement.signingPosition
       .split(",")
@@ -90,11 +95,11 @@ export function useContractSign({
 
   const handleSignSubmit = async (signaturePayload, otpPayload) => {
     if (!processCode) {
-      toast.error("Thiếu processCode từ URL.");
+      toast.error(t("signHooks.missingProcessCode"));
       return;
     }
     if (!signContextRef.current?.processId) {
-      toast.error("Vui lòng xác nhận hợp đồng trước khi ký.");
+      toast.error(t("signHooks.confirmFirst"));
       return;
     }
 
@@ -102,7 +107,7 @@ export function useContractSign({
       signPayloadRef.current = signaturePayload;
       setSignOpen(false);
       setPlacementMode(true);
-      toast.info("Hãy kéo chữ ký tới vị trí mong muốn trên hợp đồng.");
+      toast.info(t("signHooks.dragHint"));
       return;
     }
 
@@ -113,14 +118,14 @@ export function useContractSign({
       const res = await signEContract(payload);
       const url = getDownloadUrlFromSignResponse(res);
       if (url) setDownloadUrl(url);
-      toast.success("Ký hợp đồng thành công!");
+      toast.success(t("signHooks.signSuccess"));
       setSignOpen(false);
       setPlacementMode(false);
       setIsReadyToSign(false);
       signPayloadRef.current = null;
     } catch (err) {
       toast.error(
-        err?.response?.data?.message || err?.message || "Lỗi ký hợp đồng.",
+        err?.response?.data?.message || err?.message || t("signHooks.signError"),
       );
     } finally {
       setSignLoading(false);
@@ -129,20 +134,20 @@ export function useContractSign({
 
   const requestOtpAfterPositioning = async () => {
     if (!signPayloadRef.current) {
-      toast.error("Bạn cần tạo chữ ký trước.");
+      toast.error(t("signHooks.createSigFirst"));
       return;
     }
     setSignLoading(true);
     try {
       const payload = buildSignPayload(signPayloadRef.current, null);
       await signEContract(payload);
-      toast.info("OTP đã được gửi. Vui lòng nhập OTP để hoàn tất ký.");
+      toast.info(t("signHooks.otpSent"));
       setPlacementMode(false);
       setInitialStep(2);
       setSignOpen(true);
     } catch (err) {
       toast.error(
-        err?.response?.data?.message || err?.message || "Không thể gửi OTP.",
+        err?.response?.data?.message || err?.message || t("signHooks.otpSendFail"),
       );
     } finally {
       setSignLoading(false);
@@ -151,20 +156,20 @@ export function useContractSign({
 
   const handleResendOtp = async (resetTimer) => {
     if (!signPayloadRef.current) {
-      toast.error("Bạn cần tạo chữ ký trước.");
+      toast.error(t("signHooks.createSigFirst"));
       return;
     }
     setSignLoading(true);
     try {
       const payload = buildSignPayload(signPayloadRef.current, null);
       await signEContract(payload);
-      toast.info("OTP mới đã được gửi.");
+      toast.info(t("signHooks.otpResent"));
       resetTimer();
     } catch (err) {
       toast.error(
         err?.response?.data?.message ||
           err?.message ||
-          "Không thể gửi lại OTP.",
+          t("signHooks.otpResendFail"),
       );
     } finally {
       setSignLoading(false);
@@ -177,7 +182,7 @@ export function useContractSign({
       return;
     }
     if (!processCode) {
-      toast.error("Thiếu processCode từ đường dẫn.");
+      toast.error(t("signHooks.missingProcessCodePath"));
       return;
     }
     if (placementMode) {
@@ -195,12 +200,12 @@ export function useContractSign({
   // ─── Dùng signingCtx đã load sẵn, mở SignModal ngay (bỏ CCCD) ──────────────
   const handleReject = async (reason) => {
     if (!processCode) {
-      toast.error("Thiếu processCode từ URL.");
+      toast.error(t("signHooks.missingProcessCode"));
       return;
     }
     const ctx = preloadedCtx;
     if (!ctx?.processId) {
-      toast.error("Không thể từ chối, vui lòng tải lại trang.");
+      toast.error(t("signHooks.cannotReject"));
       return;
     }
     try {
@@ -220,11 +225,11 @@ export function useContractSign({
         showReason: true,
         confirmTermsConditions: true,
       });
-      toast.success("Đã từ chối ký hợp đồng.");
+      toast.success(t("signHooks.rejectSuccess"));
       setConfirmOpen(false);
     } catch (err) {
       toast.error(
-        err?.response?.data?.message || err?.message || "Lỗi từ chối ký hợp đồng.",
+        err?.response?.data?.message || err?.message || t("signHooks.rejectError"),
       );
     }
   };
@@ -232,7 +237,7 @@ export function useContractSign({
   const handleConfirmAgree = () => {
     const ctx = preloadedCtx;
     if (!ctx?.processId) {
-      toast.error("Không thể xác nhận, vui lòng tải lại trang.");
+      toast.error(t("signHooks.cannotConfirm"));
       return;
     }
 

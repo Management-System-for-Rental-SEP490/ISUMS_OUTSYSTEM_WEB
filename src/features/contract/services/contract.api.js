@@ -26,10 +26,39 @@ export function uploadCccd(id, token, frontImage, backImage) {
   const form = new FormData();
   form.append("frontImage", frontImage);
   form.append("backImage", backImage);
-  return http.put(`/econtracts/${id}/cccd`, form, {
+  return http.post(`/econtracts/${id}/cccd`, form, {
     headers: {
-      "Content-Type": "multipart/form-data",
       ...(token ? { "X-Contract-Token": token } : {}),
     },
+    silent500: true,
+  });
+}
+
+/**
+ * Upload passport (single image) for foreign tenant identity verification.
+ * BE counterpart: PUT /econtracts/{id}/passport — requires `X-Contract-Token`
+ * header. BE runs OCR + transitions the contract to READY + dispatches the
+ * "ready-for-landlord-signature" Kafka event, same as the CCCD flow.
+ */
+export function uploadPassport(id, token, passportImage) {
+  const form = new FormData();
+  form.append("passportImage", passportImage);
+  return http.put(`/econtracts/${id}/passport`, form, {
+    headers: {
+      ...(token ? { "X-Contract-Token": token } : {}),
+    },
+    silent500: true,
+  });
+}
+
+/**
+ * Fetch tenantType + contractLanguage for the confirm page router.
+ * Returns { data: { tenantType: "VIETNAMESE" | "FOREIGNER",
+ *                   contractLanguage: "VI" | "VI_EN" | "VI_JA" } }.
+ * Only the magic token is required — no JWT session.
+ */
+export function getContractTenantMeta(contractId, token) {
+  return http.get(`/econtracts/${contractId}/tenant-meta`, {
+    headers: { "X-Contract-Token": token },
   });
 }

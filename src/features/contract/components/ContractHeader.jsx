@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+
 export default function ContractHeader({
   contractName,
   downloadUrl,
@@ -8,19 +10,20 @@ export default function ContractHeader({
   currentPlacement,
   onConfirm,
 }) {
+  const { t } = useTranslation("common");
   const statusLabel = downloadUrl
-    ? "Đã ký"
+    ? t("contractHeader.signed")
     : placementMode
-      ? "Đang chỉnh vị trí ký"
-      : "Chờ ký";
+      ? t("contractHeader.adjustingPosition")
+      : t("contractHeader.waitingSign");
 
   const buttonLabel = downloadUrl
-    ? "Tải xuống"
+    ? t("contractHeader.download")
     : placementMode
-      ? "Xác nhận vị trí & nhận OTP"
+      ? t("contractHeader.confirmPositionAndOtp")
       : isReadyToSign
-        ? "Ký hợp đồng"
-        : "Xác nhận & Ký";
+        ? t("contractHeader.sign")
+        : t("contractHeader.confirmAndSign");
 
   const statusColor = downloadUrl
     ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
@@ -46,10 +49,10 @@ export default function ContractHeader({
           />
           <div className="min-w-0">
             <div className="text-[10px] uppercase tracking-[0.18em] text-slate-400 font-semibold">
-              Hợp đồng điện tử
+              {t("contractHeader.contractElectronic")}
             </div>
             <div className="text-sm font-semibold text-slate-800 truncate">
-              {contractName || "Xem trước hợp đồng"}
+              {contractName || t("contract.previewTitle")}
             </div>
           </div>
         </div>
@@ -65,7 +68,10 @@ export default function ContractHeader({
 
           {placementMode && (
             <div className="hidden lg:block text-[11px] text-slate-400 font-mono bg-slate-50 px-2 py-1 rounded-md ring-1 ring-slate-200">
-              Trang {currentPlacement.signingPage} · {currentPlacement.signingPosition}
+              {t("contractHeader.pagePos", {
+                page: currentPlacement.signingPage,
+                position: currentPlacement.signingPosition,
+              })}
             </div>
           )}
 
