@@ -47,36 +47,40 @@ function CccdLoadingOverlay({ done, onDone }) {
   const [progress, setProgress] = useState(0);
   const progressRef = useRef(0);
 
-  // Phase 1: tăng dần đến 95
+  // Phase 1: tăng dần đến 95, sau đó creep chậm lên 99 khi chờ API
   useEffect(() => {
+    if (done) return;
     const interval = setInterval(() => {
       setProgress((p) => {
-        if (p >= 95) {
+        if (p >= 99) {
           clearInterval(interval);
-          return 95;
+          return 99;
         }
-        const increment = p < 40 ? 2 : p < 75 ? 1 : 0.4;
-        const next = Math.min(p + increment, 95);
+        const increment = p < 30 ? 0.8 : p < 85 ? 0.55 : 0.28;
+        const next = Math.min(p + increment, 99);
         progressRef.current = next;
         return next;
       });
     }, 160);
     return () => clearInterval(interval);
-  }, []);
+  }, [done]);
 
-  // Phase 2: khi API xong,      sprint nhanh từ vị trí hiện tại lên 100 rồi gọi onDone
+  // Phase 2: khi API xong, sprint nhanh từ vị trí hiện tại lên 100 rồi gọi onDone
   useEffect(() => {
     if (!done) return;
     let p = Math.round(progressRef.current);
+    const fast = p < 99;
+    const step = fast ? 2 : 1;
+    const intervalMs = fast ? 30 : 60;
     const sprint = setInterval(() => {
-      p += 1;
+      p = Math.min(p + step, 100);
       progressRef.current = p;
       setProgress(p);
       if (p >= 100) {
         clearInterval(sprint);
         setTimeout(onDone, 200);
       }
-    }, 60);
+    }, intervalMs);
     return () => clearInterval(sprint);
   }, [done]); // eslint-disable-line react-hooks/exhaustive-deps
 
