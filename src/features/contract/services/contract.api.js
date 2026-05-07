@@ -1,7 +1,7 @@
 import { http } from "../../../shared/api/http";
-// export function getEContract(processCode) {
-//   return http.post("/econtracts/outsystem", { processCode });
-// }
+export function getOutSystemContract(processCode) {
+  return http.post("/econtracts/outsystem", { processCode }, { silent500: true });
+}
 export function readyEcontract(processCode) {
   return http.post("/econtracts/processCode", { processCode }, { silent500: true });
 }

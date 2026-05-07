@@ -1,5 +1,6 @@
   import React, { useRef, useState, useCallback, useEffect } from "react";
   import { useTranslation } from "react-i18next";
+  import TermsModal from "./TermsModal";
 
   /** 1: Chỉ văn bản | 2: Văn bản và hình ảnh | 3: Chỉ hình ảnh */
   export const SIGNATURE_DISPLAY_MODE = {
@@ -299,6 +300,7 @@
     initialStep = 1,
     onResendOtp,
     stepIndicator,
+    processCode,
   }) {
     const { t } = useTranslation("common");
     const [step, setStep] = useState(1);
@@ -314,6 +316,7 @@
     const [remainingSeconds, setRemainingSeconds] = useState(null);
 
     const [previewOpen, setPreviewOpen] = useState(false);
+    const [showTerms, setShowTerms] = useState(false);
 
     const [logoPos, setLogoPos] = useState({ x: 10, y: 55 });
     const [sigPos, setSigPos] = useState({ x: 260, y: 35 });
@@ -741,9 +744,13 @@
                     />
                     <span className="text-sm text-gray-700 leading-relaxed">
                       {t("signModal.termsPart1")}{" "}
-                      <span className="text-blue-600 hover:underline cursor-pointer">
+                      <button
+                        type="button"
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowTerms(true); }}
+                        className="text-blue-600 hover:underline cursor-pointer bg-transparent border-0 p-0 font-inherit"
+                      >
                         {t("signModal.termsLink")}
-                      </span>{" "}
+                      </button>{" "}
                       {t("signModal.termsPart2")}
                     </span>
                   </label>
@@ -855,6 +862,11 @@
             )}
           </div>
         </div>
+        <TermsModal
+          open={showTerms}
+          onClose={() => setShowTerms(false)}
+          processCode={processCode}
+        />
       </div>
     );
   }

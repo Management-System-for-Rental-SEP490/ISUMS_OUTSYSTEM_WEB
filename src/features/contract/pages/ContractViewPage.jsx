@@ -74,6 +74,7 @@ export function ContractViewPage() {
         onConfirm={signing.handleConfirmAgree}
         onReject={signing.handleReject}
         stepIndicator={stepIndicatorEl}
+        processCode={processCode}
       />
       <SignModal
         open={signing.signOpen}
@@ -87,6 +88,7 @@ export function ContractViewPage() {
         contractName={contractInfo?.documentNo}
         onResendOtp={signing.handleResendOtp}
         stepIndicator={stepIndicatorEl}
+        processCode={processCode}
       />
 
       <ContractHeader

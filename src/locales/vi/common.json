@@ -39,6 +39,8 @@
     "tipsTitle": "Lưu ý khi chụp ảnh:",
     "tip1": "Ảnh chụp cần rõ nét, không bị lóa sáng hay mất góc.",
     "tip2": "Thông tin trên thẻ phải còn thời hạn sử dụng.",
+    "privacyNoticeTitle": "Cam kết bảo mật dữ liệu cá nhân",
+    "privacyNotice": "Theo Nghị định 13/2023/NĐ-CP và Luật Bảo vệ Dữ liệu Cá nhân 2025: ảnh CCCD chỉ được dùng để xác minh danh tính và đính kèm vào hợp đồng điện tử ký số (theo Luật Giao dịch điện tử 2023, Điều 12). Ngay sau khi đính kèm vào hợp đồng, tệp ảnh gốc sẽ bị xóa khỏi hệ thống lưu trữ, không sao chép, không chia sẻ với bên thứ ba, không phục vụ mục đích phân tích/quảng cáo.",
     "uploadingBtn": "Đang tải lên...",
     "processing": {
       "title": "Đang tải lên và xác minh CCCD",
@@ -70,6 +72,8 @@
     "tipsTitle": "Lưu ý khi chụp ảnh:",
     "tip1": "Chụp toàn bộ trang thông tin — họ tên, số hộ chiếu, ngày sinh, hạn, MRZ đều phải thấy rõ.",
     "tip2": "Tránh lóa sáng; đảm bảo hộ chiếu còn thời hạn ít nhất đến hết hợp đồng.",
+    "privacyNoticeTitle": "Cam kết bảo mật dữ liệu cá nhân",
+    "privacyNotice": "Theo Nghị định 13/2023/NĐ-CP và Luật Bảo vệ Dữ liệu Cá nhân 2025: ảnh hộ chiếu chỉ được dùng để xác minh danh tính và đính kèm vào hợp đồng điện tử ký số (theo Luật Giao dịch điện tử 2023, Điều 12). Ngay sau khi đính kèm vào hợp đồng, tệp ảnh gốc sẽ bị xóa khỏi hệ thống lưu trữ, không sao chép, không chia sẻ với bên thứ ba, không phục vụ mục đích phân tích/quảng cáo.",
     "success": "Hộ chiếu đã xác minh",
     "successFull": "Xác minh hộ chiếu thành công! Hợp đồng đã sẵn sàng để ký.",
     "verifyFailed": "Xác minh hộ chiếu thất bại, vui lòng thử lại.",
@@ -112,6 +116,10 @@
     "server": "Lỗi máy chủ, vui lòng thử lại sau.",
     "notFound": "Đường dẫn không hợp lệ. Vui lòng sử dụng đường dẫn từ email.",
     "missingProcessCode": "Thiếu mã xử lý hợp đồng, Vui lòng check lại đường link trong email.",
+    "invalidProcessCode": "Đường dẫn ký hợp đồng đã hết hạn hoặc không còn hiệu lực. Vui lòng kiểm tra email mới nhất từ hệ thống.",
+    "signingInfoUnavailable": "Không thể tải thông tin ký lúc này. Vui lòng thử lại sau.",
+    "contractNotFound": "Không tìm thấy hợp đồng. Hợp đồng có thể đã bị xóa hoặc thay thế.",
+    "contractPdfNotReady": "Hợp đồng đang được tạo file PDF. Vui lòng thử lại sau ít phút.",
     "loadContract": "Lỗi tải hợp đồng."
   },
   "signHooks": {
@@ -219,6 +227,20 @@
     "hintContinue": "Nhấn \"Tiếp tục\" để chuyển sang bước ký hợp đồng.",
     "rejectButton": "Từ chối ký",
     "processing": "ĐANG XỬ LÝ..."
+  },
+  "termsModal": {
+    "title": "Điều khoản, điều kiện",
+    "tabContract": "Nội dung hợp đồng",
+    "tabPlatform": "Nền tảng ký số",
+    "loading": "Đang tải nội dung hợp đồng...",
+    "loadError": "Không tải được nội dung hợp đồng. Vui lòng thử lại.",
+    "platformIntro": "Khi ký hợp đồng điện tử trên nền tảng ISUMS, bạn đồng ý với các điều khoản sau của dịch vụ ký số:",
+    "platformItem1": "Chữ ký số được tạo bằng dịch vụ VNPT eContract, có giá trị pháp lý theo Luật Giao dịch điện tử 2023 và Nghị định 130/2018/NĐ-CP.",
+    "platformItem2": "Mã OTP gửi qua email/SMS dùng để xác thực danh tính người ký, không chia sẻ với bất kỳ ai. Mỗi mã chỉ có hiệu lực trong thời gian quy định và sử dụng một lần.",
+    "platformItem3": "Ảnh CCCD/Hộ chiếu được dùng duy nhất để xác minh danh tính và đính kèm vào hợp đồng đã ký, sau đó tệp ảnh gốc được xóa khỏi hệ thống lưu trữ theo Nghị định 13/2023/NĐ-CP.",
+    "platformItem4": "Bản ghi quá trình ký (timestamp, IP, processCode, document hash) được lưu để phục vụ tra soát và giải quyết tranh chấp; không sử dụng cho mục đích quảng cáo hay phân tích bên ngoài.",
+    "platformItem5": "Bằng việc tick chọn xác nhận và bấm Tiếp tục, bạn xác nhận đã đọc, hiểu và đồng ý toàn bộ nội dung hợp đồng nêu trên cùng các điều khoản nền tảng ký số này.",
+    "close": "Đóng"
   },
   "stepIndicator": {
     "step1": "Điều khoản",

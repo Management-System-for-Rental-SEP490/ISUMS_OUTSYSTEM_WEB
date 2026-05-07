@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
+import TermsModal from "./TermsModal";
 
 export default function ConfirmModal({
   open,
@@ -10,6 +11,7 @@ export default function ConfirmModal({
   confirmLabel,
   cancelLabel,
   stepIndicator,
+  processCode,
 }) {
   const { t } = useTranslation("common");
   // Resolve defaults lazily inside the component so i18n is live. Callers
@@ -23,6 +25,7 @@ export default function ConfirmModal({
   const [showRejectBox, setShowRejectBox] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [rejectLoading, setRejectLoading] = useState(false);
+  const [showTerms, setShowTerms] = useState(false);
 
   if (!open) return null;
 
@@ -95,9 +98,13 @@ export default function ConfirmModal({
               />
               <span className="text-sm text-gray-700 leading-relaxed">
                 {t("signModal.termsPart1")}{" "}
-                <a href="#" className="text-blue-600 hover:underline">
+                <button
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowTerms(true); }}
+                  className="text-blue-600 hover:underline cursor-pointer bg-transparent border-0 p-0 font-inherit"
+                >
                   {t("signModal.termsLink")}
-                </a>{" "}
+                </button>{" "}
                 {t("signModal.termsPart2")}
               </span>
             </label>
@@ -222,6 +229,11 @@ export default function ConfirmModal({
           </button>
         </div>
       </div>
+      <TermsModal
+        open={showTerms}
+        onClose={() => setShowTerms(false)}
+        processCode={processCode}
+      />
     </div>
   );
 }

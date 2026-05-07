@@ -39,6 +39,8 @@
     "tipsTitle": "Photo tips:",
     "tip1": "The photo must be sharp, no glare or clipped edges.",
     "tip2": "The information on the card must still be valid.",
+    "privacyNoticeTitle": "Personal data protection commitment",
+    "privacyNotice": "Per Vietnam's Decree 13/2023/ND-CP and Personal Data Protection Law 2025: your Citizen ID image is used solely to verify your identity and to be embedded into the e-signed contract (as required by the Law on Electronic Transactions 2023, Article 12). Immediately after embedding, the original image file is deleted from our storage; it is not copied, not shared with any third party, and not used for analytics or marketing.",
     "uploadingBtn": "Uploading...",
     "processing": {
       "title": "Uploading and verifying your ID",
@@ -70,6 +72,8 @@
     "tipsTitle": "Photo tips:",
     "tip1": "Capture the entire information page — name, passport number, date of birth, expiry, and the MRZ must all be clearly visible.",
     "tip2": "Avoid glare; make sure the passport is valid at least through the end of the contract.",
+    "privacyNoticeTitle": "Personal data protection commitment",
+    "privacyNotice": "Per Vietnam's Decree 13/2023/ND-CP and Personal Data Protection Law 2025: your passport image is used solely to verify your identity and to be embedded into the e-signed contract (as required by the Law on Electronic Transactions 2023, Article 12). Immediately after embedding, the original image file is deleted from our storage; it is not copied, not shared with any third party, and not used for analytics or marketing.",
     "success": "Passport verified",
     "successFull": "Passport verified! The contract is ready to be signed.",
     "verifyFailed": "Passport verification failed, please try again.",
@@ -112,6 +116,10 @@
     "server": "Server error, please try again later.",
     "notFound": "Invalid link. Please use the link from your email.",
     "missingProcessCode": "Contract process code missing. Please check the link in your email.",
+    "invalidProcessCode": "This signing link has expired or is no longer valid. Please check the latest email from the system.",
+    "signingInfoUnavailable": "Unable to load signing info right now. Please try again later.",
+    "contractNotFound": "Contract not found. It may have been deleted or replaced.",
+    "contractPdfNotReady": "The contract PDF is still being generated. Please try again in a few minutes.",
     "loadContract": "Error loading contract."
   },
   "signHooks": {
@@ -219,6 +227,20 @@
     "hintContinue": "Press \"Continue\" to move to the contract signing step.",
     "rejectButton": "Reject signing",
     "processing": "PROCESSING..."
+  },
+  "termsModal": {
+    "title": "Terms and conditions",
+    "tabContract": "Contract content",
+    "tabPlatform": "Signing platform",
+    "loading": "Loading contract content...",
+    "loadError": "Could not load contract content. Please try again.",
+    "platformIntro": "By signing electronically on the ISUMS platform you agree to the following terms of the digital signing service:",
+    "platformItem1": "Digital signatures are generated through the VNPT eContract service and are legally binding under the 2023 Law on Electronic Transactions and Decree 130/2018/ND-CP.",
+    "platformItem2": "The OTP code sent via email/SMS authenticates the signer's identity. Do not share it. Each code is single-use and only valid for the stated period.",
+    "platformItem3": "ID card / passport images are used solely to verify identity and to be attached to the signed contract; the original image files are then deleted from storage in accordance with Decree 13/2023/ND-CP.",
+    "platformItem4": "Signing audit records (timestamp, IP, processCode, document hash) are retained to support audit trails and dispute resolution; they are not used for advertising or external analytics.",
+    "platformItem5": "By ticking the confirmation box and pressing Continue, you confirm that you have read, understood and agreed to the contract content above as well as these signing-platform terms.",
+    "close": "Close"
   },
   "stepIndicator": {
     "step1": "Terms",
