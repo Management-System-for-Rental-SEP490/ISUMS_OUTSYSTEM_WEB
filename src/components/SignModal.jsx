@@ -1,5 +1,6 @@
   import React, { useRef, useState, useCallback, useEffect } from "react";
   import { useTranslation } from "react-i18next";
+  import TermsModal from "./TermsModal";
 
   /** 1: Chỉ văn bản | 2: Văn bản và hình ảnh | 3: Chỉ hình ảnh */
   export const SIGNATURE_DISPLAY_MODE = {
@@ -79,14 +80,20 @@
     boxRef,
     disabled,
     label,
+    isDraggingAny,
+    setDraggingAny,
+    onAlignmentChange,
   }) {
-    const { t } = useTranslation("common");
     const dragging = useRef(false);
+    const [hovered, setHovered] = useState(false);
     const start = useRef({ x: 0, y: 0, px: 0, py: 0 });
+
+    const SNAP_THRESHOLD = 6;
 
     const onPointerDown = (e) => {
       if (disabled) return;
       dragging.current = true;
+      setDraggingAny?.(true);
       const rect = boxRef.current?.getBoundingClientRect();
       start.current = {
         x: e.clientX,
@@ -108,35 +115,89 @@
       const dx = e.clientX - start.current.x;
       const dy = e.clientY - start.current.y;
 
-      const nextX = clamp(start.current.px + dx, 0, Math.max(0, bw - size.w));
-      const nextY = clamp(start.current.py + dy, 0, Math.max(0, bh - size.h));
+      let nextX = clamp(start.current.px + dx, 0, Math.max(0, bw - size.w));
+      let nextY = clamp(start.current.py + dy, 0, Math.max(0, bh - size.h));
+
+      const cx = (bw - size.w) / 2;
+      const cy = (bh - size.h) / 2;
+      const snapH = Math.abs(nextX - cx) < SNAP_THRESHOLD;
+      const snapV = Math.abs(nextY - cy) < SNAP_THRESHOLD;
+      if (snapH) nextX = cx;
+      if (snapV) nextY = cy;
+
+      onAlignmentChange?.({ horizontal: snapH, vertical: snapV });
       setPos({ x: nextX, y: nextY });
     };
 
     const onPointerUp = () => {
       dragging.current = false;
+      setDraggingAny?.(false);
+      onAlignmentChange?.({ horizontal: false, vertical: false });
     };
 
     if (!src) return null;
 
+    const showHint = !disabled && (hovered || dragging.current);
+
     return (
       <div
-        className={`absolute select-none ${disabled ? "cursor-default" : "cursor-move"}`}
-        style={{ left: pos.x, top: pos.y, width: size.w, height: size.h }}
+        className="absolute select-none"
+        style={{
+          left: pos.x,
+          top: pos.y,
+          width: size.w,
+          height: size.h,
+          cursor: disabled ? "default" : (dragging.current ? "grabbing" : "grab"),
+          transition: dragging.current ? "none" : "box-shadow 150ms ease, transform 150ms ease",
+          transform: dragging.current ? "scale(1.01)" : "scale(1)",
+          zIndex: dragging.current ? 20 : 10,
+        }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
       >
-        <img
-          src={src}
-          alt={label || id}
-          className="w-full h-full object-contain bg-white/70 rounded-md border border-slate-200"
-          draggable={false}
-        />
-        {!disabled && (
-          <div className="absolute -top-2 -right-2 bg-slate-900 text-white text-[10px] px-1.5 py-0.5 rounded shadow">
-            {t("signModal.previewDragHint")}
+        <div
+          className="w-full h-full rounded-md overflow-hidden"
+          style={{
+            background: "rgba(255,255,255,0.85)",
+            outline: showHint ? "2px solid rgb(59 130 246)" : "1px solid rgba(148,163,184,0.35)",
+            boxShadow: dragging.current
+              ? "0 12px 28px -12px rgba(15,23,42,0.35), 0 4px 10px -4px rgba(15,23,42,0.18)"
+              : showHint
+                ? "0 4px 14px -6px rgba(59,130,246,0.35)"
+                : "none",
+          }}
+        >
+          <img
+            src={src}
+            alt={label || id}
+            className="w-full h-full object-contain"
+            draggable={false}
+          />
+        </div>
+        {showHint && (
+          <div
+            className="absolute pointer-events-none flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium bg-slate-900/90 text-white shadow-lg"
+            style={{
+              top: -10,
+              left: 8,
+              transform: "translateY(-100%)",
+              opacity: isDraggingAny || hovered ? 1 : 0,
+              transition: "opacity 120ms ease",
+            }}
+          >
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 9l-3 3 3 3" />
+              <path d="M9 5l3-3 3 3" />
+              <path d="M15 19l-3 3-3-3" />
+              <path d="M19 9l3 3-3 3" />
+              <path d="M2 12h20" />
+              <path d="M12 2v20" />
+            </svg>
+            {label}
           </div>
         )}
       </div>
@@ -158,11 +219,13 @@
     setSigPos,
     logoSize,
     sigSize,
-    finalSignatureImage,
     onBuildImage,
     onReset,
   }) {
     const { t } = useTranslation("common");
+    const [draggingAny, setDraggingAny] = useState(false);
+    const [alignment, setAlignment] = useState({ horizontal: false, vertical: false });
+
     useEffect(() => {
       if (!open) return;
       onBuildImage?.();
@@ -174,41 +237,126 @@
     const canDragLogo = mode === 2 || mode === 3;
     const canDragSig = mode === 1 || mode === 2;
 
+    const modeLabel = mode === 1
+      ? t("signModal.displayModeOption1")
+      : mode === 3
+        ? t("signModal.displayModeOption3")
+        : t("signModal.displayModeOption2");
+
     return (
-      <div className="fixed inset-0 z-[10000] bg-black/55 flex items-center justify-center p-4">
-        <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
-          <div className="px-6 py-4 border-b flex items-center justify-between bg-white/95 backdrop-blur">
-            <div>
-              <h3 className="font-semibold text-gray-900 text-base md:text-lg">
-                {t("signModal.previewSignature")}
-              </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                {t("signModal.previewHint")}
-              </p>
+      <div className="fixed inset-0 z-[10000] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div
+          className="w-full max-w-3xl bg-white rounded-2xl overflow-hidden flex flex-col"
+          style={{
+            boxShadow: "0 25px 50px -12px rgba(2, 6, 23, 0.5), 0 0 0 1px rgba(148,163,184,0.1)",
+            maxHeight: "90vh",
+          }}
+        >
+          <div
+            className="px-6 py-4 flex items-start justify-between"
+            style={{
+              background: "linear-gradient(to bottom, #ffffff, #f8fafc)",
+              borderBottom: "1px solid rgba(226,232,240,0.8)",
+            }}
+          >
+            <div className="flex items-start gap-3">
+              <div
+                className="shrink-0 mt-0.5 w-9 h-9 rounded-xl flex items-center justify-center"
+                style={{
+                  background: "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",
+                  boxShadow: "0 4px 12px -2px rgba(59,130,246,0.4)",
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
+                  <circle cx="12" cy="13" r="3" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="font-semibold text-slate-900 text-base md:text-lg leading-tight">
+                  {t("signModal.previewSignature")}
+                </h3>
+                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                  {t("signModal.previewHint")}
+                </p>
+              </div>
             </div>
             <button
               onClick={onClose}
-              className="text-gray-500 hover:text-black disabled:opacity-50"
               disabled={loading}
+              className="shrink-0 w-8 h-8 -mr-1 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition disabled:opacity-50"
+              aria-label="Close"
             >
-              ✕
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
             </button>
           </div>
 
-          <div className="px-6 py-5 space-y-4">
+          <div className="px-6 pt-5 pb-2 flex-1 overflow-y-auto">
+            <div className="flex items-center justify-between mb-3">
+              <div
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium"
+                style={{
+                  background: "rgba(59,130,246,0.08)",
+                  color: "#1d4ed8",
+                  border: "1px solid rgba(59,130,246,0.2)",
+                }}
+              >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="8" x2="12" y2="12" />
+                  <circle cx="12" cy="16" r="0.5" fill="currentColor" />
+                </svg>
+                {modeLabel}
+              </div>
+              <span className="text-[11px] text-slate-400 hidden sm:inline">
+                {t("signModal.previewDragHint")}
+              </span>
+            </div>
+
             <div
               ref={previewBoxRef}
-              className="relative w-full bg-white rounded-xl border border-slate-200 overflow-hidden"
-              style={{ height: 220 }}
+              className="relative w-full overflow-hidden rounded-xl"
+              style={{
+                height: 280,
+                background: "#fafbfc",
+                border: "1px solid rgba(226,232,240,0.9)",
+                boxShadow: "inset 0 2px 4px 0 rgba(15,23,42,0.04)",
+              }}
             >
               <div
-                className="absolute inset-0"
+                className="absolute inset-0 pointer-events-none"
                 style={{
-                  backgroundImage:
-                    "linear-gradient(to right, rgba(148,163,184,0.18) 1px, transparent 1px), linear-gradient(to bottom, rgba(148,163,184,0.18) 1px, transparent 1px)",
-                  backgroundSize: "18px 18px",
+                  backgroundImage: "radial-gradient(rgba(148,163,184,0.25) 1px, transparent 1px)",
+                  backgroundSize: "16px 16px",
+                  opacity: 0.65,
                 }}
               />
+
+              {alignment.horizontal && (
+                <div
+                  className="absolute top-0 bottom-0 pointer-events-none"
+                  style={{
+                    left: "50%",
+                    width: 1,
+                    background: "linear-gradient(to bottom, transparent, #3b82f6 20%, #3b82f6 80%, transparent)",
+                    boxShadow: "0 0 6px rgba(59,130,246,0.55)",
+                  }}
+                />
+              )}
+              {alignment.vertical && (
+                <div
+                  className="absolute left-0 right-0 pointer-events-none"
+                  style={{
+                    top: "50%",
+                    height: 1,
+                    background: "linear-gradient(to right, transparent, #3b82f6 20%, #3b82f6 80%, transparent)",
+                    boxShadow: "0 0 6px rgba(59,130,246,0.55)",
+                  }}
+                />
+              )}
 
               <DraggableLayer
                 id="logo"
@@ -222,6 +370,9 @@
                 boxRef={previewBoxRef}
                 disabled={!canDragLogo}
                 label={t("signModal.previewImageLabel")}
+                isDraggingAny={draggingAny}
+                setDraggingAny={setDraggingAny}
+                onAlignmentChange={setAlignment}
               />
 
               <DraggableLayer
@@ -236,54 +387,75 @@
                 boxRef={previewBoxRef}
                 disabled={!canDragSig}
                 label={t("signModal.previewSigLabel")}
+                isDraggingAny={draggingAny}
+                setDraggingAny={setDraggingAny}
+                onAlignmentChange={setAlignment}
               />
-            </div>
 
-            <div className="flex flex-wrap items-center gap-2 justify-between">
+              {!drawnSignature && !uploadedImage && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 pointer-events-none">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z" />
+                    <path d="M14.06 6.19l3.75 3.75" />
+                  </svg>
+                  <p className="text-xs mt-2">{t("signModal.previewEmpty", { defaultValue: "Chưa có chữ ký để xem trước" })}</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div
+            className="px-6 py-4 flex flex-wrap items-center gap-3 justify-between"
+            style={{
+              background: "#f8fafc",
+              borderTop: "1px solid rgba(226,232,240,0.8)",
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                onReset?.();
+                onBuildImage?.();
+              }}
+              disabled={loading}
+              className="inline-flex items-center gap-1.5 text-sm px-3.5 py-2 rounded-lg font-medium text-slate-600 hover:text-slate-900 hover:bg-white transition disabled:opacity-50"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+                <polyline points="3 3 3 8 8 8" />
+              </svg>
+              {t("signModal.previewReset")}
+            </button>
+
+            <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => {
-                  onReset?.();
-                  onBuildImage?.();
-                }}
-                className="text-xs md:text-sm px-3 py-2 rounded-lg border border-slate-200 hover:bg-slate-50"
+                onClick={onClose}
                 disabled={loading}
+                className="text-sm px-4 py-2 rounded-lg font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition disabled:opacity-60"
               >
-                {t("signModal.previewReset")}
+                {t("signModal.previewAdjust")}
               </button>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="text-xs md:text-sm px-4 py-2 rounded-lg border border-slate-200 hover:bg-slate-50"
-                  disabled={loading}
-                >
-                  {t("signModal.previewAdjust")}
-                </button>
-                <button
-                  type="button"
-                  onClick={onConfirm}
-                  className="text-xs md:text-sm px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
-                  disabled={loading}
-                >
-                  {loading ? t("signModal.processing") : t("signModal.previewAgree")}
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={onConfirm}
+                disabled={loading}
+                className="inline-flex items-center gap-1.5 text-sm px-5 py-2 rounded-lg font-semibold text-white transition disabled:opacity-60"
+                style={{
+                  background: loading
+                    ? "#94a3b8"
+                    : "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",
+                  boxShadow: loading ? "none" : "0 4px 12px -2px rgba(59,130,246,0.4)",
+                }}
+              >
+                {!loading && (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                )}
+                {loading ? t("signModal.processing") : t("signModal.previewAgree")}
+              </button>
             </div>
-
-            {finalSignatureImage && (
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <div className="text-xs font-semibold text-slate-700 mb-2">
-                  {t("signModal.previewFinal")}
-                </div>
-                <img
-                  src={finalSignatureImage}
-                  alt={t("signModal.previewSigLabel")}
-                  className="max-h-44 w-auto rounded-md border bg-white"
-                />
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -299,6 +471,7 @@
     initialStep = 1,
     onResendOtp,
     stepIndicator,
+    processCode,
   }) {
     const { t } = useTranslation("common");
     const [step, setStep] = useState(1);
@@ -314,6 +487,7 @@
     const [remainingSeconds, setRemainingSeconds] = useState(null);
 
     const [previewOpen, setPreviewOpen] = useState(false);
+    const [showTerms, setShowTerms] = useState(false);
 
     const [logoPos, setLogoPos] = useState({ x: 10, y: 55 });
     const [sigPos, setSigPos] = useState({ x: 260, y: 35 });
@@ -741,9 +915,13 @@
                     />
                     <span className="text-sm text-gray-700 leading-relaxed">
                       {t("signModal.termsPart1")}{" "}
-                      <span className="text-blue-600 hover:underline cursor-pointer">
+                      <button
+                        type="button"
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowTerms(true); }}
+                        className="text-blue-600 hover:underline cursor-pointer bg-transparent border-0 p-0 font-inherit"
+                      >
                         {t("signModal.termsLink")}
-                      </span>{" "}
+                      </button>{" "}
                       {t("signModal.termsPart2")}
                     </span>
                   </label>
@@ -855,6 +1033,11 @@
             )}
           </div>
         </div>
+        <TermsModal
+          open={showTerms}
+          onClose={() => setShowTerms(false)}
+          processCode={processCode}
+        />
       </div>
     );
   }

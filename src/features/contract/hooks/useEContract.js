@@ -7,6 +7,21 @@ import { getSignContextFromResponse } from "../utils/signatureUtils";
 // up the tenant's contract language at load time.
 const t = (...args) => i18n.t(...args);
 
+const ERROR_CODE_KEYS = {
+  INVALID_PROCESS_CODE: "errors.invalidProcessCode",
+  SIGNING_INFO_UNAVAILABLE: "errors.signingInfoUnavailable",
+  CONTRACT_NOT_FOUND: "errors.contractNotFound",
+  PDF_NOT_READY: "errors.contractPdfNotReady",
+};
+
+function resolveErrorMessage(err) {
+  const data = err?.response?.data;
+  const code = data?.errors?.find((item) => item?.code)?.code || data?.code;
+  if (code && ERROR_CODE_KEYS[code]) return t(ERROR_CODE_KEYS[code]);
+  if (data?.message === "Unexpected error") return t("errors.server");
+  return t("errors.loadContract");
+}
+
 export function useEContract(processCode) {
   const [pdfUrl, setPdfUrl] = useState(null);
   const [contractInfo, setContractInfo] = useState(null);
@@ -32,13 +47,7 @@ export function useEContract(processCode) {
         setContractInfo(data ?? null);
         setSigningCtx(getSignContextFromResponse(res));
       } catch (err) {
-        if (!cancelled) {
-          setError(
-            err?.response?.data?.message === "Unexpected error"
-              ? t("errors.server")
-              : err?.response?.data?.message || err?.message || t("errors.loadContract"),
-          );
-        }
+        if (!cancelled) setError(resolveErrorMessage(err));
       } finally {
         if (!cancelled) setLoading(false);
       }

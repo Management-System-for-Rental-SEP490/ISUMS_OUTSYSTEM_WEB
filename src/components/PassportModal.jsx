@@ -759,6 +759,24 @@ export default function PassportModal({ open, onClose, onConfirm, stepIndicator 
         </div>
 
         <div
+          className={`mx-6 mb-5 rounded-xl bg-emerald-50 border border-emerald-200 p-4 flex gap-3 ${loading ? "hidden" : ""}`}
+        >
+          <svg className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+            <path
+              fillRule="evenodd"
+              clipRule="evenodd"
+              d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+            />
+          </svg>
+          <div className="text-sm text-gray-700 leading-relaxed">
+            <p className="font-semibold text-emerald-800 mb-1">
+              {t("passport.privacyNoticeTitle")}
+            </p>
+            <p>{t("passport.privacyNotice")}</p>
+          </div>
+        </div>
+
+        <div
           className="mx-6 overflow-hidden transition-all duration-500 ease-in-out"
           style={{
             maxHeight: !loading && submitError ? "80px" : "0px",
