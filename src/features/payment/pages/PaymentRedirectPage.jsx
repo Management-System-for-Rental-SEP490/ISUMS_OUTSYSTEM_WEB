@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { createVnpayPaymentUrl } from "../../contract/services/contract.api";
@@ -7,15 +7,21 @@ export default function PaymentRedirectPage() {
   const { t } = useTranslation("common");
   const [searchParams] = useSearchParams();
   const [error, setError] = useState(null);
+  const redirectStartedRef = useRef(false);
 
   const invoiceId = searchParams.get("invoiceId");
   const token = searchParams.get("token");
+  const validationError = !invoiceId ? t("payment.invalidInvoiceId") : null;
 
   useEffect(() => {
     if (!invoiceId) {
-      setError(t("payment.invalidInvoiceId"));
       return;
     }
+
+    if (redirectStartedRef.current) {
+      return;
+    }
+    redirectStartedRef.current = true;
 
     createVnpayPaymentUrl(invoiceId, token)
       .then((res) => {
@@ -24,7 +30,7 @@ export default function PaymentRedirectPage() {
           setError(t("payment.cannotGetLink"));
           return;
         }
-        window.location.href = paymentUrl;
+        window.location.replace(paymentUrl);
       })
       .catch((err) => {
         const msg =
@@ -34,7 +40,7 @@ export default function PaymentRedirectPage() {
       });
   }, [invoiceId, token, t]);
 
-  if (error) {
+  if (validationError || error) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 max-w-sm w-full text-center">
@@ -56,7 +62,7 @@ export default function PaymentRedirectPage() {
           <h2 className="text-lg font-semibold text-gray-800 mb-2">
             {t("payment.errorTitle")}
           </h2>
-          <p className="text-sm text-gray-500">{error}</p>
+          <p className="text-sm text-gray-500">{validationError || error}</p>
         </div>
       </div>
     );
