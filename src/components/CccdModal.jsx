@@ -1,5 +1,6 @@
 import { useRef, useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import { useCccdProgress } from "../shared/ws/useCccdProgress";
 
 // Ranges stay module-scope; labels are resolved inside the component so the
 // i18n runtime can pick the right locale per render.
@@ -36,7 +37,7 @@ function getApiErrorMessage(err, fallback, t) {
   );
 }
 
-function CccdLoadingOverlay({ done, onDone }) {
+function CccdLoadingOverlay({ done, onDone, contractId }) {
   const { t } = useTranslation("common");
   const steps = [
     { label: t("cccd.processing.uploading"),  range: STEP_RANGES[0] },
@@ -46,8 +47,8 @@ function CccdLoadingOverlay({ done, onDone }) {
   ];
   const [progress, setProgress] = useState(0);
   const progressRef = useRef(0);
+  const { stepOverride, connected } = useCccdProgress(contractId, !done);
 
-  // Phase 1: tăng dần đến 95, sau đó creep chậm lên 99 khi chờ API
   useEffect(() => {
     if (done) return;
     const interval = setInterval(() => {
@@ -65,7 +66,16 @@ function CccdLoadingOverlay({ done, onDone }) {
     return () => clearInterval(interval);
   }, [done]);
 
-  // Phase 2: khi API xong, sprint nhanh từ vị trí hiện tại lên 100 rồi gọi onDone
+  useEffect(() => {
+    if (stepOverride == null || stepOverride < 0) return;
+    const target = STEP_RANGES[stepOverride]?.[0] ?? 0;
+    setProgress((p) => {
+      if (p >= target) return p;
+      progressRef.current = target;
+      return target;
+    });
+  }, [stepOverride]);
+
   useEffect(() => {
     if (!done) return;
     let p = Math.round(progressRef.current);
@@ -85,8 +95,9 @@ function CccdLoadingOverlay({ done, onDone }) {
   }, [done]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pct = Math.round(progress);
-  const activeStep = steps.findIndex((s) => pct < s.range[1]);
-  const currentStep = activeStep === -1 ? steps.length - 1 : activeStep;
+  const fakeActiveStep = steps.findIndex((s) => pct < s.range[1]);
+  const fakeStep = fakeActiveStep === -1 ? steps.length - 1 : fakeActiveStep;
+  const currentStep = connected && stepOverride != null && stepOverride >= 0 ? stepOverride : fakeStep;
 
   // SVG circular progress
   const r = 44;
@@ -764,7 +775,7 @@ function ImageUploadBox({
   );
 }
 
-export default function CccdModal({ open, onClose, onConfirm, stepIndicator }) {
+export default function CccdModal({ open, onClose, onConfirm, stepIndicator, contractId }) {
   const { t } = useTranslation("common");
   const [frontFile, setFrontFile] = useState(null);
   const [backFile, setBackFile] = useState(null);
@@ -875,7 +886,7 @@ export default function CccdModal({ open, onClose, onConfirm, stepIndicator }) {
 
         {/* Loading overlay */}
         {loading && (
-          <CccdLoadingOverlay done={apiDone} onDone={() => setLoading(false)} />
+          <CccdLoadingOverlay done={apiDone} onDone={() => setLoading(false)} contractId={contractId} />
         )}
 
         {/* Upload boxes */}

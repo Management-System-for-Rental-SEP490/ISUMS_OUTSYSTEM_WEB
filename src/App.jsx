@@ -4,6 +4,7 @@ import { ContractViewPage } from "./features/contract/pages/ContractViewPage";
 import { ContractConfirmPage } from "./features/contract/pages/ContractConfirmPage";
 import PaymentResultPage from "./features/payment/pages/PaymentResultPage";
 import PaymentRedirectPage from "./features/payment/pages/PaymentRedirectPage";
+import { MaintenanceGate } from "./shared/maintenance/MaintenanceGate";
 import "./App.css";
 import { ToastContainer } from "react-toastify";
 
@@ -18,26 +19,24 @@ function NotFound() {
 
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        {/* Web cũ: ký hợp đồng bằng processCode */}
-        <Route
-          path="/econtract/view/:processCode"
-          element={<ContractViewPage />}
-        />
-        {/* Web mới: preview PDF + upload CCCD */}
-        <Route
-          path="/contracts/:contractId/confirm"
-          element={<ContractConfirmPage />}
-        />
-        {/* Direct link thanh toán VNPay từ email */}
-        <Route path="/payments" element={<PaymentRedirectPage />} />
-        {/* Kết quả thanh toán VNPay */}
-        <Route path="/payments/result" element={<PaymentResultPage />} />
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-      <ToastContainer position="top-center" autoClose={3000} />
-    </BrowserRouter>
+    <MaintenanceGate>
+      <BrowserRouter>
+        <Routes>
+          <Route
+            path="/econtract/view/:processCode"
+            element={<ContractViewPage />}
+          />
+          <Route
+            path="/contracts/:contractId/confirm"
+            element={<ContractConfirmPage />}
+          />
+          <Route path="/payments" element={<PaymentRedirectPage />} />
+          <Route path="/payments/result" element={<PaymentResultPage />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+        <ToastContainer position="top-center" autoClose={3000} />
+      </BrowserRouter>
+    </MaintenanceGate>
   );
 }
 
