@@ -350,6 +350,7 @@ export function ContractConfirmPage() {
           open={idModalOpen}
           onClose={() => setIdModalOpen(false)}
           onConfirm={handleCccdConfirm}
+          contractId={contractId}
         />
       )}
     </div>
