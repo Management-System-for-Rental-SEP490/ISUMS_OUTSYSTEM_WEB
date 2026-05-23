@@ -4,6 +4,9 @@ import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  define: {
+    global: "globalThis",
+  },
   server: {
     // Strict 5174 so the Cloudflare tunnel for dev-outsystem.isums.pro can
     // rely on a fixed port. Manager FE owns 5173 (dev.isums.pro).
