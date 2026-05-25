@@ -37,7 +37,7 @@ function getApiErrorMessage(err, fallback, t) {
   );
 }
 
-function CccdLoadingOverlay({ done, onDone, contractId }) {
+export function CccdLoadingOverlay({ done, onDone, contractId }) {
   const { t } = useTranslation("common");
   const steps = [
     { label: t("cccd.processing.uploading"),  range: STEP_RANGES[0] },
