@@ -14,12 +14,15 @@ import {
 } from "../services/contract.api";
 import CccdModal from "../../../components/CccdModal";
 import PassportModal from "../../../components/PassportModal";
+import { setLanguage } from "../../../i18n";
 
 // Worker setup cho react-pdf v10
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.min.mjs",
   import.meta.url,
 ).toString();
+
+const CONTRACT_LANG_MAP = { VI: "vi", VI_EN: "en", VI_JA: "ja" };
 
 export function ContractConfirmPage() {
   const { t } = useTranslation("common");
@@ -75,8 +78,9 @@ export function ContractConfirmPage() {
 
         const meta = metaRes?.data?.data;
         if (meta?.tenantType) setTenantType(meta.tenantType);
-        // contractLanguage could also be used to auto-switch i18n here;
-        // deferred to FE-7 (full Outsystem i18n).
+        if (meta?.contractLanguage) {
+          setLanguage(CONTRACT_LANG_MAP[meta.contractLanguage] ?? "vi");
+        }
       } catch (err) {
         if (!cancelled)
           setFetchError(
